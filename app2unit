@@ -747,7 +747,7 @@ read_entry_path() {
 	in_action=false
 	action_exec=false
 	# shellcheck disable=SC2016
-	debug "reading desktop entry '$entry_path'${entry_action:+ action '}$entry_action${entry_action:+'}"
+	debug "reading desktop entry '$entry_path'${entry_action:+ action '$entry_action'}"
 	# Let `read` trim leading/trailing whitespace from the line
 	while read -r line; do
 		case $line in
