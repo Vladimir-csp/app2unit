@@ -186,7 +186,16 @@ error() {
 	printf '%s\n' "$@" >&2
 	# if notify-send is installed and stderr is not a terminal, also send notification
 	if [ ! -t 2 ] && command -v notify-send > /dev/null; then
-		notify-send -u critical -i error -a "${SELF_NAME}" "Error" "$1"
+		notify-send -u critical -i dialog-error -a "${SELF_NAME}" "Error" "$1"
+	fi
+}
+
+warning() {
+	# Print messages to stdout, send notification (only first arg) if stdout is not interactive
+	printf '%s\n' "$@"
+	# if notify-send is installed and stdout is not a terminal, also send notification
+	if [ ! -t 1 ] && command -v notify-send > /dev/null; then
+		notify-send -u normal -i dialog-warning -a "${SELF_NAME}" "Warning" "$1"
 	fi
 }
 
@@ -195,7 +204,7 @@ message() {
 	printf '%s\n' "$@"
 	# if notify-send is installed and stdout is not a terminal, also send notification
 	if [ ! -t 1 ] && command -v notify-send > /dev/null; then
-		notify-send -u normal -i info -a "${SELF_NAME}" "Info" "$1"
+		notify-send -u normal -i dialog-information -a "${SELF_NAME}" "Info" "$1"
 	fi
 }
 
@@ -1218,13 +1227,16 @@ parse_main_arg() {
 				error "File not found: '$ENTRY_PATH'"
 				return 1
 			fi
-			return
 			;;
 		esac
 
 		if ! validate_entry_id "$ENTRY_ID"; then
-			error "Invalid Entry ID '$ENTRY_ID'!"
-			return 1
+			if [ -z "$ENTRY_PATH" ]; then
+				error "Invalid Entry ID '$ENTRY_ID'!"
+				return 1
+			else
+				warning "Invalid Entry ID '$ENTRY_ID'!"
+			fi
 		fi
 		if ! validate_action_id "$ENTRY_ACTION"; then
 			error "Invalid Entry Action ID '$ENTRY_ACTION'!"
@@ -1711,7 +1723,7 @@ elif [ "$#" -eq "0" ] && [ "$TERMINAL" = "true" ]; then
 			printf '  > %s\n' $EXEC_RSEP_USEP
 		)"
 	else
-		# issue a warning
+		# issue a warning to stderr
 		{
 			# shellcheck disable=SC2028
 			echo "Could not determine default terminal entry via '$TERMINAL_HANDLER --print-path --print-cmd=\037'!"
