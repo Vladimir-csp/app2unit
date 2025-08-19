@@ -327,6 +327,7 @@ find_entry() {
 	error "Could not find entry '$ENTRY_ID'!"
 	return 1
 }
+# Mask IFS change
 alias find_entry='IFS= find_entry'
 
 de_expand_str() {
@@ -640,6 +641,8 @@ de_inject_fields() {
 	fi
 	IFS=$OIFS
 }
+# Mask IFS change
+alias de_inject_fields='IFS= de_inject_fields'
 
 parse_entry_key() {
 	# set global vars or fail entry
@@ -942,6 +945,8 @@ read_entry_path() {
 		;;
 	esac
 }
+# Mask IFS change
+alias read_entry_path='IFS= read_entry_path'
 
 random_string() {
 	# gets random 8 hex characters
@@ -1759,6 +1764,7 @@ if [ -n "$ENTRY_PATH" ]; then
 			break
 		fi
 	done
+	IFS=$OIFS
 elif [ -n "$ENTRY_ID" ]; then
 	make_paths
 	ENTRY_PATH=$(find_entry "$ENTRY_ID")
