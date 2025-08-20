@@ -257,15 +257,55 @@ replace() {
 	done
 }
 
+normpath() {
+	# lightly normalize paths for comparison purposes
+	case "$1" in
+	/*) path_result= ;;
+	*) path_result=$(pwd) ;;
+	esac
+	IFS='/'
+	for path_item in $1; do
+		case "$path_item" in
+		# ignore empty element or current dir
+		'.' | '') true ;;
+		# deal with parent dir
+		'..')
+			case "$path_result" in
+			# nothing above root
+			'/') true ;;
+			# remove last component if more than one
+			'/'*'/'*) path_result=${path_result%/*} ;;
+			# last component, reduce to root
+			/*) path_result='/' ;;
+			esac
+			;;
+		*) path_result=${path_result}/${path_item} ;;
+		esac
+	done
+	IFS=$OIFS
+	debug "before normpath: $1" " after normpath: $path_result"
+	printf '%s' "$path_result"
+}
+# Mask IFS change
+alias normpath='IFS= normpath'
+
 make_paths() {
 	# constructs normalized APPLICATIONS_DIRS
 	IFS=':'
 	APPLICATIONS_DIRS=''
 	# Populate list of directories to search for entries in, in descending order of preference
 	for dir in ${XDG_DATA_HOME:-${HOME}/.local/share}${IFS}${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do
+		case "$dir" in
+		/*) true ;;
+		*)
+			error "Non-absolute path in \$XDG_DATA_HOME:\$XDG_DATA_DIRS: $dir"
+			exit 1
+			;;
+		esac
 		# Normalise base path and append the data subdirectory with a trailing '/'
-		APPLICATIONS_DIRS=${APPLICATIONS_DIRS:+${APPLICATIONS_DIRS}${IFS}}${dir%/}/applications/
+		APPLICATIONS_DIRS=${APPLICATIONS_DIRS:+${APPLICATIONS_DIRS}${IFS}}$(normpath "${dir}")/applications/
 	done
+	IFS=$OIFS
 }
 # Mask IFS change
 alias make_paths='IFS= make_paths'
@@ -1746,10 +1786,12 @@ parse_main_arg "$MAIN_ARG"
 if [ -n "$ENTRY_PATH" ]; then
 	# reverse-deduce and correct Entry ID against applications dirs
 	make_paths
+	ENTRY_PATH=$(normpath "$ENTRY_PATH")
 	IFS=':'
 	for dir in $APPLICATIONS_DIRS; do
 		if [ "$ENTRY_PATH" != "${ENTRY_PATH#"$dir"}" ]; then
 			ENTRY_ID_PRE=${ENTRY_PATH#"$dir"}
+			debug "Processing Entry ID '$ENTRY_ID_PRE' as deduced in '$dir'"
 			case "$ENTRY_ID_PRE" in
 			*/*)
 				replace "$ENTRY_ID_PRE" "/" "-"
@@ -1758,6 +1800,7 @@ if [ -n "$ENTRY_PATH" ]; then
 			esac
 			if validate_entry_id "$ENTRY_ID_PRE"; then
 				ENTRY_ID=$ENTRY_ID_PRE
+				debug "deduced Entry ID '$ENTRY_ID_PRE'"
 			else
 				error "Deduced Entry ID '$ENTRY_ID_PRE' is invalid!"
 			fi
