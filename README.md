@@ -4,9 +4,9 @@ Launch Desktop Entries (or arbitrary commands) as Systemd user units, and do it
 fast.
 
 Based heavily on mechanisms and optimizations introduced into
-[xdg-terminal-exec](../xdg-terminal-exec/) by @fluvf, it performs function
-similar to (and behaves similarly to) [uwsm](../uwsm)'s `app` subcommand, but
-without costly startup of python interpreter or necessity of having a daemon
+[xdg-terminal-exec](https://github.com/Vladimir-csp/xdg-terminal-exec) by @fluvf, it performs function
+similar to (and behaves similarly to) [uwsm](https://github.com/Vladimir-csp/uwsm)'s `app` subcommand, but
+without the costly startup of Python interpreter or the necessity of having a daemon
 running for speeding things up. If run on a fast shell (such as `dash`) with
 system stored on an SSD, overhead can be as short as ~0.03s, with `systemd-run`
 giving additional ~0.03s.
@@ -54,7 +54,7 @@ more](https://codeberg.org/dnkl/fuzzel/issues/292).
 
 ## Terminal support
 
-Requires `xdg-terminal-exec`. When terminal is requested explicitly (with `-T`
+Requires `xdg-terminal-exec`. When the terminal is requested explicitly (with `-T`
 argument or `*-term` executable link), any unknown option starting with `-`
 after `-T` and before `--` (or a command) are passed to `xdg-terminal-exec` to
 be handled according to the
@@ -62,7 +62,7 @@ be handled according to the
 
 ### Launching default terminal
 
-`app2unit -T` or `app2unit-term` (without command) can be used to open default
+`app2unit -T` or `app2unit-term` (without command) can be used to open the default
 terminal as a unit, with unit metadata filled from its desktop entry.
 
 Proper metadata support requires scripting options in `xdg-terminal-exec`
@@ -70,7 +70,7 @@ available since version 0.13.0.
 
 ## Opener mode
 
-If invoked with `-O | --open` option, or if executable's name ends with
+If invoked with `-O | --open` option, or if the executable's name ends with
 `-open` (i.e. via `app2unit-open` symlink), the script becomes an analog of
 `xdg-open`: files or URLs given in arguments are opened with a desktop entry
 automatically selected via `xdg-mime`. This can be a unit-aware drop-in
@@ -86,7 +86,7 @@ app2unit-open .
 
 ## Single-command links
 
-Links are available to pre-select some launching modes via a sinlge command:
+Links are available to pre-select some launching modes via a single command:
 
 * `app2unit-open`
 * `app2unit-open-scope`
@@ -95,5 +95,5 @@ Links are available to pre-select some launching modes via a sinlge command:
 * `app2unit-term-scope`
 * `app2unit-term-service`
 
-This may come handy for situations where other apps can only operate a command
-without arguments. I.e. selecting a terminal command in PCmanFM.
+This may come in handy for situations where other apps can only operate a command
+without arguments. I.e., selecting a terminal command in PCmanFM.
