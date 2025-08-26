@@ -74,6 +74,10 @@ app-_${desktop}_-_${app_name}_-_${random}_.scope
 	Set/override unit description. By default description is generated from
 	Entry's "*Name=*" and "*GenericName=*" keys.
 
+*-p* _Property_=_value_
+
+	Set additional unit property (option is repeatable).
+
 *-T*
 
 	Force launch in terminal (*xdg-terminal-exec* is used). Any unknown

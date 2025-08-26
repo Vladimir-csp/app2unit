@@ -36,6 +36,7 @@ usage() {
 		)
 		    [{-a app_name | -u unit_id}] \\
 		    [-d description] \\
+		    [-p Property=value] \\
 		    [-S {out|err|both}] \\
 		    [{-c|-C}] \\
 		    [-T] \\$(
@@ -100,6 +101,9 @@ help() {
 		  -d description
 		    Set/override unit description. By default description is generated from
 		    Entry's "Name=" and "GenericName=" keys.
+		
+		  -p Property=value
+		    Set additional properties for unit.
 
 	EOF
 	case "$SELF_NAME" in
@@ -1165,6 +1169,13 @@ systemd_run() {
 		--collect \
 		-- "$@"
 
+	# prepend extra properties
+	IFS=${USEP}
+	for prop in $UNIT_PROPERTIES; do
+		set -- "--property=${prop}" "$@"
+	done
+	IFS=${OIFS}
+
 	if [ "$PART_OF_GST" = "true" ]; then
 		# prepend graphical session dependency/ordering args
 		set -- \
@@ -1234,6 +1245,8 @@ systemd_run() {
 	# exec
 	exec systemd-run --user "$@"
 }
+# Mask IFS withing function to allow temporary changes
+alias systemd_run='IFS= systemd_run'
 
 parse_main_arg() {
 	# fills some of global variables depending on main arg $1
@@ -1391,6 +1404,7 @@ ENTRY_WORKDIR=''
 UNIT_DESCRIPTION=''
 UNIT_ID=''
 UNIT_APP_SUBSTRING=''
+UNIT_PROPERTIES=''
 
 SILENT=''
 TEST_MODE=false
@@ -1657,6 +1671,22 @@ while [ "$#" -gt "0" ]; do
 		OPENER_MODE=true
 		debug "arg '$1'"
 		shift
+		;;
+	-p)
+		debug "arg '$1' '${2:-}'"
+		case "${2:-}" in
+		'='*)
+			error "Expected unit property assignment for -p, got '${2:-}'!" "$(usage)"
+			;;
+		*'='*)
+			UNIT_PROPERTIES=${UNIT_PROPERTIES}${UNIT_PROPERTIES:+${USEP}}${2}
+			;;
+		*)
+			error "Expected unit property assignment for -p, got '${2:-}'!" "$(usage)"
+			exit 1
+			;;
+		esac
+		shift 2
 		;;
 	--fuzzel-compat)
 		FUZZEL_COMPAT=true
