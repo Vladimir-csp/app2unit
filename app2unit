@@ -298,8 +298,6 @@ normpath() {
 	debug "before normpath: $1" " after normpath: $path_result"
 	NORMALIZED_PATH=$path_result
 }
-# Mask IFS change
-alias normpath='IFS= normpath'
 
 make_paths() {
 	# constructs normalized APPLICATIONS_DIRS
@@ -316,12 +314,10 @@ make_paths() {
 		esac
 		# Normalise base path and append the data subdirectory with a trailing '/'
 		normpath "${dir}"
-		APPLICATIONS_DIRS=${APPLICATIONS_DIRS:+${APPLICATIONS_DIRS}${IFS}}${NORMALIZED_PATH}/applications/
+		APPLICATIONS_DIRS=${APPLICATIONS_DIRS:+${APPLICATIONS_DIRS}:}${NORMALIZED_PATH}/applications/
 	done
 	IFS=$OIFS
 }
-# Mask IFS change
-alias make_paths='IFS= make_paths'
 
 find_entry() {
 	# finds entry by ID
@@ -330,8 +326,6 @@ find_entry() {
 
 	# start assembling find args
 	set --
-	OIFS=$IFS
-	IFS=':'
 
 	# Append application directory paths to be searched
 	IFS=':'
@@ -381,8 +375,6 @@ find_entry() {
 	error "Could not find entry '$fe_find_entry_id'!"
 	return 1
 }
-# Mask IFS change
-alias find_entry='IFS= find_entry'
 
 de_expand_str() {
 	# expands \s, \n, \t, \r, \\
@@ -699,8 +691,6 @@ de_inject_fields() {
 	fi
 	IFS=$OIFS
 }
-# Mask IFS change
-alias de_inject_fields='IFS= de_inject_fields'
 
 parse_entry_key() {
 	# set global vars or fail entry
@@ -740,6 +730,7 @@ parse_entry_key() {
 		for check_action in $value; do
 			case "$check_action" in
 			"$action")
+				IFS=$OIFS
 				action_listed=true
 				return 0
 				;;
@@ -756,7 +747,7 @@ parse_entry_key() {
 		debug "checking TryExec executable '$value'"
 		de_expand_str "$value"
 		value=$EXPANDED_STR
-		if ! type "$value" > /dev/null 2>&1; then
+		if ! command -v "$value" > /dev/null 2>&1; then
 			error "${ENTRY_ID}: TryExec '$value' failed!"
 			return 1
 		fi
@@ -807,7 +798,7 @@ parse_entry_key() {
 		*) EXEC_NAME=${exec0} ;;
 		esac
 		debug "checking Exec[0] executable '${EXEC_PATH:-$EXEC_NAME}'"
-		if ! type "${EXEC_PATH:-$EXEC_NAME}" > /dev/null 2>&1; then
+		if ! command -v "${EXEC_PATH:-$EXEC_NAME}" > /dev/null 2>&1; then
 			error "${ENTRY_ID}: Exec command '${EXEC_PATH:-$EXEC_NAME}' not found"
 			return 1
 		fi
@@ -905,8 +896,6 @@ parse_entry_key() {
 	esac
 	# By default unrecognised keys, empty lines and comments get ignored
 }
-# Mask IFS withing function to allow temporary changes
-alias parse_entry_key='IFS= parse_entry_key'
 
 read_entry_path() {
 	# Read entry from given path
@@ -1003,8 +992,6 @@ read_entry_path() {
 		;;
 	esac
 }
-# Mask IFS change
-alias read_entry_path='IFS= read_entry_path'
 
 random_string() {
 	# gets random 8 hex characters
@@ -1262,8 +1249,6 @@ systemd_run() {
 	# exec
 	exec systemd-run --user "$@"
 }
-# Mask IFS withing function to allow temporary changes
-alias systemd_run='IFS= systemd_run'
 
 parse_main_arg() {
 	# fills some of global variables depending on main arg $1
@@ -1340,7 +1325,7 @@ parse_main_arg() {
 
 	EXEC_NAME=$MAIN_ARG
 	debug "EXEC_NAME: $EXEC_NAME"
-	if ! type "$EXEC_NAME" > /dev/null 2>&1; then
+	if ! command -v "$EXEC_NAME" > /dev/null 2>&1; then
 		error "Executable not found: '$EXEC_NAME'"
 		return 1
 	fi
@@ -1785,7 +1770,7 @@ elif [ "$FUZZEL_COMPAT" = "true" ]; then
 	MAIN_ARG=$FUZZEL_DESKTOP_FILE_ID
 	# Fuzzel compat mode, awaiting for https://codeberg.org/dnkl/fuzzel/issues/292
 	# ignore command from entry, take only metadata, use arg array as is.
-	if ! type "$1" > /dev/null 2>&1; then
+	if ! command -v "$1" > /dev/null 2>&1; then
 		error "Executable not found: '$1'"
 		exit 1
 	fi
