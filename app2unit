@@ -800,7 +800,7 @@ parse_entry_key() {
 		debug "checking Exec[0] executable '${EXEC_PATH:-$EXEC_NAME}'"
 		if ! command -v "${EXEC_PATH:-$EXEC_NAME}" > /dev/null 2>&1; then
 			error "${ENTRY_ID}: Exec command '${EXEC_PATH:-$EXEC_NAME}' not found"
-			return 1
+			return 127
 		fi
 		;;
 	URL)
@@ -1285,7 +1285,7 @@ parse_main_arg() {
 			ENTRY_ID=${ENTRY_ID##*/}
 			if [ ! -f "$ENTRY_PATH" ]; then
 				error "File not found: '$ENTRY_PATH'"
-				return 1
+				return 127
 			fi
 			;;
 		esac
@@ -1313,7 +1313,7 @@ parse_main_arg() {
 		debug "EXEC_PATH: $EXEC_PATH" "EXEC_NAME: $EXEC_NAME"
 		if [ ! -f "$EXEC_PATH" ]; then
 			error "File not found: '$EXEC_PATH'"
-			return 1
+			return 127
 		fi
 		if [ ! -x "$EXEC_PATH" ]; then
 			error "File is not executable: '$EXEC_PATH'"
@@ -1327,7 +1327,7 @@ parse_main_arg() {
 	debug "EXEC_NAME: $EXEC_NAME"
 	if ! command -v "$EXEC_NAME" > /dev/null 2>&1; then
 		error "Executable not found: '$EXEC_NAME'"
-		return 1
+		return 127
 	fi
 }
 
@@ -1772,7 +1772,7 @@ elif [ "$FUZZEL_COMPAT" = "true" ]; then
 	# ignore command from entry, take only metadata, use arg array as is.
 	if ! command -v "$1" > /dev/null 2>&1; then
 		error "Executable not found: '$1'"
-		exit 1
+		exit 127
 	fi
 	for item in "$@"; do
 		EXEC_RSEP_USEP=${EXEC_RSEP_USEP}${item}${USEP}
@@ -1889,6 +1889,7 @@ if [ -n "$ENTRY_ID" ]; then
 	*"$RSEP"*)
 		IFS=$RSEP
 		first=true
+		pids=
 		for cmd in $EXEC_RSEP_USEP; do
 			IFS=$USEP
 			# shellcheck disable=SC2086
@@ -1909,10 +1910,15 @@ if [ -n "$ENTRY_ID" ]; then
 				randomize_unit_id
 			fi
 			systemd_run "$@" &
+			pids=${pids}${pids:+ }$!
 			first=false
 		done
-		wait
-		exit
+		ec=0
+		# shellcheck disable=SC2086
+		for pid in $pids; do
+			wait $pid || ec=1
+		done
+		exit $ec
 		;;
 	*)
 		IFS=$USEP
