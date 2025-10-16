@@ -995,7 +995,7 @@ read_entry_path() {
 
 random_string() {
 	# gets random 8 hex characters
-	tr -dc '0-9a-f' < /dev/urandom 2> /dev/null | head -c 8
+	LC_ALL=C tr -dc '0-9a-f' < /dev/urandom 2> /dev/null | head -c 8
 }
 
 validate_entry_id() {
