@@ -143,6 +143,10 @@ app-_${desktop}_-_${app_name}_-_${random}_.scope
 	*true*|*false*, whether to set "*PartOf=graphical-session.target*"
 	dependency for launched applications (default: *true*)
 
+*APP2UNIT_DEBUG*, *DEBUG*
+
+	Truthy or greater than zero value enables debug messages to stderr.
+
 # SEE ALSO
 
 *systemd-run*(1), *systemd.special*(7), *xdg-terminal-exec*(1)
