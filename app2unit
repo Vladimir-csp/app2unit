@@ -816,12 +816,12 @@ parse_entry_key() {
 		true_false_*)
 			debug "captured '$key' '$value'"
 			de_expand_str "$value"
-			A2U__ENTRY_LNAME=$A2U__EXPANDED_STR
+			A2U__ENTRY_NAME_L=$A2U__EXPANDED_STR
 			;;
 		false_true_*)
 			debug "captured '$key' '$value'"
 			de_expand_str "$value"
-			A2U__ENTRY_LNAME_ACTION=$A2U__EXPANDED_STR
+			A2U__ENTRY_NAME_L_ACTION=$A2U__EXPANDED_STR
 			;;
 		*) debug "discarded '$key' '$value'" ;;
 		esac
@@ -845,12 +845,12 @@ parse_entry_key() {
 	"GenericName[${A2U__LCODE}]")
 		debug "captured '$key' '$value'"
 		de_expand_str "$value"
-		A2U__ENTRY_LCOMMENT=$A2U__EXPANDED_STR
+		A2U__ENTRY_GENERICNAME_L=$A2U__EXPANDED_STR
 		;;
 	GenericName)
 		debug "captured '$key' '$value'"
 		de_expand_str "$value"
-		A2U__ENTRY_COMMENT=$A2U__EXPANDED_STR
+		A2U__ENTRY_GENERICNAME=$A2U__EXPANDED_STR
 		;;
 	Icon)
 		if [ -n "$value" ] && { [ "$in_main" = "true" ] || [ "$in_action" = "true" ]; }; then
@@ -975,7 +975,7 @@ read_entry_path() {
 			return 1
 			;;
 		esac
-		if [ "$action_exec" != "true" ] || [ -z "${A2U__ENTRY_LNAME_ACTION:-${A2U__ENTRY_NAME_ACTION:-}}" ]; then
+		if [ "$action_exec" != "true" ] || [ -z "${A2U__ENTRY_NAME_L_ACTION:-${A2U__ENTRY_NAME_ACTION:-}}" ]; then
 			error "${A2U__ENTRY_ID}: Action '$entry_action' is incomplete"
 			return 1
 		fi
@@ -1159,10 +1159,10 @@ systemd_run() {
 	# wrapper for systemd-run
 	# prepend common args
 	A2U__UNIT_SLICE_ID=${A2U__UNIT_SLICE_ID:-app-graphical.slice}
-	if [ -z "$A2U__UNIT_DESCRIPTION" ] && [ -n "${A2U__ENTRY_LNAME:-$A2U__ENTRY_NAME}" ] && [ -n "${A2U__ENTRY_LCOMMENT:-$A2U__ENTRY_COMMENT}" ]; then
-		A2U__UNIT_DESCRIPTION="${A2U__ENTRY_LNAME:-$A2U__ENTRY_NAME} - ${A2U__ENTRY_LCOMMENT:-$A2U__ENTRY_COMMENT}"
-	elif [ -z "$A2U__UNIT_DESCRIPTION" ] && [ -n "${A2U__ENTRY_LNAME:-$A2U__ENTRY_NAME}" ]; then
-		A2U__UNIT_DESCRIPTION="${A2U__ENTRY_LNAME:-$A2U__ENTRY_NAME}"
+	if [ -z "$A2U__UNIT_DESCRIPTION" ] && [ -n "${A2U__ENTRY_NAME_L:-$A2U__ENTRY_NAME}" ] && [ -n "${A2U__ENTRY_GENERICNAME_L:-$A2U__ENTRY_GENERICNAME}" ]; then
+		A2U__UNIT_DESCRIPTION="${A2U__ENTRY_NAME_L:-$A2U__ENTRY_NAME} - ${A2U__ENTRY_GENERICNAME_L:-$A2U__ENTRY_GENERICNAME}"
+	elif [ -z "$A2U__UNIT_DESCRIPTION" ] && [ -n "${A2U__ENTRY_NAME_L:-$A2U__ENTRY_NAME}" ]; then
+		A2U__UNIT_DESCRIPTION="${A2U__ENTRY_NAME_L:-$A2U__ENTRY_NAME}"
 	elif [ -z "$A2U__UNIT_DESCRIPTION" ] && [ -n "$A2U__EXEC_NAME" ]; then
 		A2U__UNIT_DESCRIPTION=${A2U__EXEC_NAME}
 	fi
@@ -1401,8 +1401,12 @@ A2U__ENTRY_PATH=
 A2U__ENTRY_ID=
 A2U__ENTRY_TYPE=
 A2U__ENTRY_URL=
-A2U__ENTRY_COMMENT=
 A2U__ENTRY_NAME=
+A2U__ENTRY_NAME_L=
+A2U__ENTRY_NAME_ACTION=
+A2U__ENTRY_NAME_L_ACTION=
+A2U__ENTRY_GENERICNAME=
+A2U__ENTRY_GENERICNAME_L=
 A2U__ENTRY_ICON=
 A2U__ENTRY_WORKDIR=
 A2U__UNIT_DESCRIPTION=
