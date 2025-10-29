@@ -21,8 +21,8 @@ EOF
 set -euf
 
 shcat() {
-	while IFS= read -r line; do
-		printf '%s\n' "$line"
+	while IFS= read -r a2u__line; do
+		printf '%s\n' "$a2u__line"
 	done
 }
 
@@ -235,8 +235,8 @@ if check_bool "${APP2UNIT_DEBUG-${DEBUG-0}}"; then
 	A2U__DEBUG=true
 	debug() {
 		# print each arg at new line, prefix each printed line with 'D: '
-		while IFS= read -r debug_line; do
-			printf 'D: %s\n' "$debug_line"
+		while IFS= read -r a2u__debug_line; do
+			printf 'D: %s\n' "$a2u__debug_line"
 		done <<- EOF >&2
 			$(printf '%s\n' "$@")
 		EOF
@@ -252,21 +252,21 @@ replace() {
 	# writes result to global A2U__REPLACED_STR to avoid $() newline issues
 
 	# right part of string
-	r_remainder=${1}
+	a2u__r_remainder=${1}
 	A2U__REPLACED_STR=
-	while [ -n "$r_remainder" ]; do
+	while [ -n "$a2u__r_remainder" ]; do
 		# left part before first encounter of $2
-		r_left=${r_remainder%%"$2"*}
+		a2u__r_left=${a2u__r_remainder%%"$2"*}
 		# append
-		A2U__REPLACED_STR=${A2U__REPLACED_STR}$r_left
-		case "$r_left" in
+		A2U__REPLACED_STR=${A2U__REPLACED_STR}$a2u__r_left
+		case "$a2u__r_left" in
 		# nothing left to cut
-		"$r_remainder") break ;;
+		"$a2u__r_remainder") break ;;
 		esac
 		# append replace substring
 		A2U__REPLACED_STR=${A2U__REPLACED_STR}$3
 		# cut remainder
-		r_remainder=${r_remainder#*"$2"}
+		a2u__r_remainder=${a2u__r_remainder#*"$2"}
 	done
 }
 
@@ -274,31 +274,31 @@ normpath() {
 	# lightly normalize paths for comparison purposes
 	# write to A2U__NORMALIZED_PATH var
 	case "$1" in
-	/*) path_result= ;;
-	*) path_result=${PWD} ;;
+	/*) a2u__path_result= ;;
+	*) a2u__path_result=${PWD} ;;
 	esac
 	IFS='/'
-	for path_item in $1; do
-		case "$path_item" in
+	for a2u__path_item in $1; do
+		case "$a2u__path_item" in
 		# ignore empty element or current dir
 		'.' | '') true ;;
 		# deal with parent dir
 		'..')
-			case "$path_result" in
+			case "$a2u__path_result" in
 			# nothing above root
 			'/') true ;;
 			# remove last component if more than one
-			'/'*'/'*) path_result=${path_result%/*} ;;
+			'/'*'/'*) a2u__path_result=${a2u__path_result%/*} ;;
 			# last component, reduce to root
-			/*) path_result='/' ;;
+			/*) a2u__path_result='/' ;;
 			esac
 			;;
-		*) path_result=${path_result}/${path_item} ;;
+		*) a2u__path_result=${a2u__path_result}/${a2u__path_item} ;;
 		esac
 	done
 	IFS=$A2U__OIFS
-	debug "before normpath: $1" " after normpath: $path_result"
-	A2U__NORMALIZED_PATH=$path_result
+	debug "before normpath: $1" " after normpath: $a2u__path_result"
+	A2U__NORMALIZED_PATH=$a2u__path_result
 }
 
 make_paths() {
@@ -306,16 +306,16 @@ make_paths() {
 	IFS=':'
 	A2U__APPLICATIONS_DIRS=
 	# Populate list of directories to search for entries in, in descending order of preference
-	for dir in ${XDG_DATA_HOME:-${HOME}/.local/share}${IFS}${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do
-		case "$dir" in
+	for a2u__dir in ${XDG_DATA_HOME:-${HOME}/.local/share}${IFS}${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do
+		case "$a2u__dir" in
 		/*) true ;;
 		*)
-			error "Non-absolute path in \$XDG_DATA_HOME:\$XDG_DATA_DIRS: $dir"
+			error "Non-absolute path in \$XDG_DATA_HOME:\$XDG_DATA_DIRS: $a2u__dir"
 			exit 1
 			;;
 		esac
 		# Normalise base path and append the data subdirectory with a trailing '/'
-		normpath "${dir}"
+		normpath "${a2u__dir}"
 		A2U__APPLICATIONS_DIRS=${A2U__APPLICATIONS_DIRS:+${A2U__APPLICATIONS_DIRS}:}${A2U__NORMALIZED_PATH}/applications/
 	done
 	IFS=$A2U__OIFS
@@ -324,49 +324,49 @@ make_paths() {
 find_entry() {
 	# finds entry by ID
 	# writes to A2U__FOUND_ENTRY_PATH var
-	fe_find_entry_id=$1
+	a2u__fe_find_entry_id=$1
 
 	# start assembling find args
 	set --
 
 	# Append application directory paths to be searched
 	IFS=':'
-	for fe_directory in $A2U__APPLICATIONS_DIRS; do
+	for a2u__fe_directory in $A2U__APPLICATIONS_DIRS; do
 		# Append '.' to delimit start of Entry ID
-		set -- "$@" "$fe_directory".
+		set -- "$@" "$a2u__fe_directory".
 	done
 
 	# Find all files
 	set -- "$@" -type f
 
 	# Append path conditions per directory
-	or_arg=
-	for fe_directory in $A2U__APPLICATIONS_DIRS; do
+	a2u__or_arg=
+	for a2u__fe_directory in $A2U__APPLICATIONS_DIRS; do
 		# Match full path with proper first character of Entry ID and .desktop extension
 		# Reject paths with invalid characters in Entry ID
-		set -- "$@" ${or_arg} '(' -path "$fe_directory"'./[a-zA-Z0-9_]*.desktop' ! -path "$fe_directory"'./*[^a-zA-Z0-9_./-]*' ')'
-		or_arg='-o'
+		set -- "$@" ${a2u__or_arg} '(' -path "$a2u__fe_directory"'./[a-zA-Z0-9_]*.desktop' ! -path "$a2u__fe_directory"'./*[^a-zA-Z0-9_./-]*' ')'
+		a2u__or_arg='-o'
 	done
 
 	# iterate over found paths
 	IFS=$A2U__OIFS
-	while read -r fe_entry_path <&3; do
+	while read -r a2u__fe_entry_path <&3; do
 		# raw drop or parse and separate data dir path from entry
-		case "$fe_entry_path" in
+		case "$a2u__fe_entry_path" in
 		# empties, just in case
 		'' | */./) continue ;;
 		# subdir, also replace / with -
 		*/./*/*)
-			replace "${fe_entry_path#*/./}" "/" "-"
-			fe_entry_id=$A2U__REPLACED_STR
+			replace "${a2u__fe_entry_path#*/./}" "/" "-"
+			a2u__fe_entry_id=$A2U__REPLACED_STR
 			;;
 		# normal separation
-		*/./*) fe_entry_id=${fe_entry_path#*/./} ;;
+		*/./*) a2u__fe_entry_id=${a2u__fe_entry_path#*/./} ;;
 		esac
 		# check ID
-		case "$fe_entry_id" in
-		"$fe_find_entry_id")
-			A2U__FOUND_ENTRY_PATH=$fe_entry_path
+		case "$a2u__fe_entry_id" in
+		"$a2u__fe_find_entry_id")
+			A2U__FOUND_ENTRY_PATH=$a2u__fe_entry_path
 			return 0
 			;;
 		esac
@@ -374,7 +374,7 @@ find_entry() {
 		$(find -L "$@" 2> /dev/null)
 	EOP
 
-	error "Could not find entry '$fe_find_entry_id'!"
+	error "Could not find entry '$a2u__fe_find_entry_id'!"
 	return 1
 }
 
@@ -384,17 +384,17 @@ de_expand_str() {
 	# writes result to global $A2U__EXPANDED_STR in place to avoid $() expansion newline issues
 	debug "expander received: $1"
 	A2U__EXPANDED_STR=
-	exp_remainder=$1
-	while [ -n "$exp_remainder" ]; do
+	a2u__exp_remainder=$1
+	while [ -n "$a2u__exp_remainder" ]; do
 		# left is substring of remainder before the first encountered backslash
-		exp_left=${exp_remainder%%\\*}
+		a2u__exp_left=${a2u__exp_remainder%%\\*}
 
 		# append left to A2U__EXPANDED_STR
-		A2U__EXPANDED_STR=${A2U__EXPANDED_STR}${exp_left}
-		debug "expander appended: $exp_left"
+		A2U__EXPANDED_STR=${A2U__EXPANDED_STR}${a2u__exp_left}
+		debug "expander appended: $a2u__exp_left"
 
-		case "$exp_left" in
-		"$exp_remainder")
+		case "$a2u__exp_left" in
+		"$a2u__exp_remainder")
 			debug "expander ended: $A2U__EXPANDED_STR"
 			# no more backslashes left
 			break
@@ -402,33 +402,33 @@ de_expand_str() {
 		esac
 
 		# remove left substring and backslash from remainder
-		exp_remainder=${exp_remainder#"$exp_left"\\}
+		a2u__exp_remainder=${a2u__exp_remainder#"$a2u__exp_left"\\}
 
-		case "$exp_remainder" in
+		case "$a2u__exp_remainder" in
 		# expand and append to A2U__EXPANDED_STR
 		s*)
 			A2U__EXPANDED_STR=${A2U__EXPANDED_STR}' '
-			exp_remainder=${exp_remainder#?}
+			a2u__exp_remainder=${a2u__exp_remainder#?}
 			debug "expander substituted space"
 			;;
 		n*)
 			A2U__EXPANDED_STR=${A2U__EXPANDED_STR}$A2U__LF
-			exp_remainder=${exp_remainder#?}
+			a2u__exp_remainder=${a2u__exp_remainder#?}
 			debug "expander substituted newline"
 			;;
 		t*)
 			A2U__EXPANDED_STR=${A2U__EXPANDED_STR}'	'
-			exp_remainder=${exp_remainder#?}
+			a2u__exp_remainder=${a2u__exp_remainder#?}
 			debug "expander substituted tab"
 			;;
 		r*)
 			A2U__EXPANDED_STR=${A2U__EXPANDED_STR}${A2U__CR}
-			exp_remainder=${exp_remainder#?}
+			a2u__exp_remainder=${a2u__exp_remainder#?}
 			debug "expander substituted caret return"
 			;;
 		\\*)
 			A2U__EXPANDED_STR=${A2U__EXPANDED_STR}\\
-			exp_remainder=${exp_remainder#?}
+			a2u__exp_remainder=${a2u__exp_remainder#?}
 			debug "expander substituted backslash"
 			;;
 		# unsupported sequence, reappend backslash
@@ -447,72 +447,72 @@ de_tokenize_exec() {
 	# Fills global A2U__EXEC_USEP var with $A2U__USEP-separated command array in place to avoid $() expansion newline issues
 	debug "tokenizer received: $1"
 	A2U__EXEC_USEP=
-	tok_remainder=$1
-	tok_quoted=0
-	tok_in_space=0
-	while [ -n "$tok_remainder" ]; do
+	a2u__tok_remainder=$1
+	a2u__tok_quoted=0
+	a2u__tok_in_space=0
+	while [ -n "$a2u__tok_remainder" ]; do
 		# left is substring of remainder before the first encountered special char
-		tok_left=${tok_remainder%%[[:space:]\"\`\$\\\'\>\<\~\|\&\;\*\?\#\(\)]*}
+		a2u__tok_left=${a2u__tok_remainder%%[[:space:]\"\`\$\\\'\>\<\~\|\&\;\*\?\#\(\)]*}
 
 		# left should be safe to append right away
-		A2U__EXEC_USEP=${A2U__EXEC_USEP}${tok_left}
-		debug "tokenizer appended: >$tok_left<"
+		A2U__EXEC_USEP=${A2U__EXEC_USEP}${a2u__tok_left}
+		debug "tokenizer appended: >$a2u__tok_left<"
 
 		# end of the line
-		case "$tok_remainder" in
-		"$tok_left")
+		case "$a2u__tok_remainder" in
+		"$a2u__tok_left")
 			debug "tokenizer is out of special chars"
 			break
 			;;
 		esac
 
 		# isolate special char
-		tok_remainder=${tok_remainder#"$tok_left"}
-		cut=${tok_remainder#?}
-		tok_char=${tok_remainder%"$cut"}
-		unset cut
+		a2u__tok_remainder=${a2u__tok_remainder#"$a2u__tok_left"}
+		a2u__cut=${a2u__tok_remainder#?}
+		a2u__tok_char=${a2u__tok_remainder%"$a2u__cut"}
+		unset a2u__cut
 		# cut it from remainder
-		tok_remainder=${tok_remainder#"$tok_char"}
+		a2u__tok_remainder=${a2u__tok_remainder#"$a2u__tok_char"}
 
 		# check if still in space
-		case "${tok_in_space}${tok_left}${tok_char}" in
+		case "${a2u__tok_in_space}${a2u__tok_left}${a2u__tok_char}" in
 		1[[:space:]])
 			debug "tokenizer still in space :) skipping space character"
 			continue
 			;;
 		1*)
 			debug "tokenizer no longer in space :("
-			tok_in_space=0
+			a2u__tok_in_space=0
 			;;
 		esac
 
 		## decide what to do with the character
 		# doublequote while quoted
-		case "${tok_quoted}${tok_char}" in
+		case "${a2u__tok_quoted}${a2u__tok_char}" in
 		'1"')
-			tok_quoted=0
+			a2u__tok_quoted=0
 			debug "tokenizer closed double quotes"
 			continue
 			;;
 		# doublequote while unquoted
 		'0"')
-			tok_quoted=1
+			a2u__tok_quoted=1
 			debug "tokenizer opened double quotes"
 			continue
 			;;
 		# error out on unquoted special chars
 		0[\`\$\\\'\>\<\~\|\&\;\*\?\#\(\)])
-			error "${A2U__ENTRY_ID}: Encountered unquoted character: '$tok_char'"
+			error "${A2U__ENTRY_ID}: Encountered unquoted character: '$a2u__tok_char'"
 			return 1
 			;;
 		# error out on quoted but unescaped chars
 		1[\`\$])
-			error "${A2U__ENTRY_ID}: Encountered unescaped quoted character: '$tok_char'"
+			error "${A2U__ENTRY_ID}: Encountered unescaped quoted character: '$a2u__tok_char'"
 			return 1
 			;;
 		# process quoted escapes
 		1\\)
-			case "$tok_remainder" in
+			case "$a2u__tok_remainder" in
 			# if there is no next char, fail
 			'')
 				error "${A2U__ENTRY_ID}: Dangling backslash encountered!"
@@ -520,25 +520,25 @@ de_tokenize_exec() {
 				;;
 			# cut and append the next char right away
 			# or a half of multibyte char, the other half should go into the next
-			# 'tok_left' hopefully...
+			# 'a2u__tok_left' hopefully...
 			*)
-				cut=${tok_remainder#?}
-				tok_char=${tok_remainder%"$cut"}
-				tok_remainder=${cut}
-				unset cut
-				A2U__EXEC_USEP=${A2U__EXEC_USEP}${tok_char}
-				debug "tokenizer appended escaped: >$tok_char<"
+				a2u__cut=${a2u__tok_remainder#?}
+				a2u__tok_char=${a2u__tok_remainder%"$a2u__cut"}
+				a2u__tok_remainder=${a2u__cut}
+				unset a2u__cut
+				A2U__EXEC_USEP=${A2U__EXEC_USEP}${a2u__tok_char}
+				debug "tokenizer appended escaped: >$a2u__tok_char<"
 				;;
 			esac
 			;;
 		# Consider Cosmos
 		0[[:space:]])
-			case "${tok_remainder}" in
+			case "${a2u__tok_remainder}" in
 			# there is non-space to follow
 			*[![:space:]]*)
 				# append separator
 				A2U__EXEC_USEP=${A2U__EXEC_USEP}${A2U__USEP}
-				tok_in_space=1
+				a2u__tok_in_space=1
 				debug "tokenizer entered spaaaaaace!!!! separator appended"
 				;;
 			# ignore unquoted space at the end of string
@@ -550,17 +550,17 @@ de_tokenize_exec() {
 			;;
 		# append quoted chars
 		1[[:space:]\'\>\<\~\|\&\;\*\?\#\(\)])
-			A2U__EXEC_USEP=${A2U__EXEC_USEP}${tok_char}
-			debug "tokenizer appended quoted char: >$tok_char<"
+			A2U__EXEC_USEP=${A2U__EXEC_USEP}${a2u__tok_char}
+			debug "tokenizer appended quoted char: >$a2u__tok_char<"
 			;;
 		# this should not happen
 		*)
-			error "${A2U__ENTRY_ID}: parsing error at char '$tok_char', (quoted: $tok_quoted)"
+			error "${A2U__ENTRY_ID}: parsing error at char '$a2u__tok_char', (quoted: $a2u__tok_quoted)"
 			return 1
 			;;
 		esac
 	done
-	case "$tok_quoted" in
+	case "$a2u__tok_quoted" in
 	1)
 		error "${A2U__ENTRY_ID}: Double quote was not closed!"
 		return 1
@@ -579,145 +579,145 @@ de_inject_fields() {
 	# Operates on argument array and $A2U__EXEC_RSEP_USEP from entry
 	# modifies $A2U__EXEC_RSEP_USEP according to args/fields
 	# no arguments, erase fields from $A2U__EXEC_RSEP_USEP
-	exec_usep=
-	fu_found=false
-	exec_iter_usep=
+	a2u__exec_usep=
+	a2u__fu_found=false
+	a2u__exec_iter_usep=
 	IFS=$A2U__USEP
-	for arg in $A2U__EXEC_RSEP_USEP; do
-		case "$arg" in
+	for a2u__arg in $A2U__EXEC_RSEP_USEP; do
+		case "$a2u__arg" in
 		# remove deprecated fields
-		*[!%]'%'[dDnNvm]* | '%'[dDnNvm]*) debug "injector removed deprecated '$arg'" ;;
+		*[!%]'%'[dDnNvm]* | '%'[dDnNvm]*) debug "injector removed deprecated '$a2u__arg'" ;;
 		# treat file fields
 		*[!%]'%'[fFuU]* | '%'[fFuU]*)
-			case "$fu_found" in
+			case "$a2u__fu_found" in
 			true)
 				error "${A2U__ENTRY_ID}: Encountered more than one %[fFuU] field!"
 				return 1
 				;;
 			esac
-			fu_found=true
+			a2u__fu_found=true
 			if [ "$#" -eq "0" ]; then
-				debug "injector removed '$arg'"
+				debug "injector removed '$a2u__arg'"
 				continue
 			fi
-			case "$arg" in
+			case "$a2u__arg" in
 			*[!%]'%F'* | *'%F'?* | *[!%]'%U'* | *'%U'?*)
-				error "${A2U__ENTRY_ID}: Encountered non-standalone field '$arg'"
+				error "${A2U__ENTRY_ID}: Encountered non-standalone field '$a2u__arg'"
 				return 1
 				;;
 			*[!%]'%f'* | '%f'*)
-				for carg in "$@"; do
-					replace "$arg" "%f" "$carg"
-					carg=$A2U__REPLACED_STR
-					debug "injector adding '$arg' iteration as '$carg'"
-					exec_iter_usep=${exec_iter_usep}${exec_iter_usep:+$A2U__USEP}${carg}
+				for a2u__carg in "$@"; do
+					replace "$a2u__arg" "%f" "$a2u__carg"
+					a2u__carg=$A2U__REPLACED_STR
+					debug "injector adding '$a2u__arg' iteration as '$a2u__carg'"
+					a2u__exec_iter_usep=${a2u__exec_iter_usep}${a2u__exec_iter_usep:+$A2U__USEP}${a2u__carg}
 				done
 				# placeholder arg
-				exec_usep=${exec_usep}${exec_usep:+$A2U__USEP}%%__ITER__%%
+				a2u__exec_usep=${a2u__exec_usep}${a2u__exec_usep:+$A2U__USEP}%%__ITER__%%
 				;;
 			'%F')
-				for carg in "$@"; do
-					debug "injector extending '$arg' with '$carg'"
-					exec_usep=${exec_usep}${exec_usep:+$A2U__USEP}${carg}
+				for a2u__carg in "$@"; do
+					debug "injector extending '$a2u__arg' with '$a2u__carg'"
+					a2u__exec_usep=${a2u__exec_usep}${a2u__exec_usep:+$A2U__USEP}${a2u__carg}
 				done
 				;;
 			*[!%]'%u'* | '%u'*)
-				for carg in "$@"; do
-					urlencode "$carg"
-					carg=$A2U__URLENCODED_STRING
-					replace "$arg" "%u" "$carg"
-					carg=$A2U__REPLACED_STR
-					debug "injector adding '$arg' iteration as '$carg'"
-					exec_iter_usep=${exec_iter_usep}${exec_iter_usep:+$A2U__USEP}${carg}
+				for a2u__carg in "$@"; do
+					urlencode "$a2u__carg"
+					a2u__carg=$A2U__URLENCODED_STRING
+					replace "$a2u__arg" "%u" "$a2u__carg"
+					a2u__carg=$A2U__REPLACED_STR
+					debug "injector adding '$a2u__arg' iteration as '$a2u__carg'"
+					a2u__exec_iter_usep=${a2u__exec_iter_usep}${a2u__exec_iter_usep:+$A2U__USEP}${a2u__carg}
 				done
 				# placeholder arg
-				exec_usep=${exec_usep}${exec_usep:+$A2U__USEP}%%__ITER__%%
+				a2u__exec_usep=${a2u__exec_usep}${a2u__exec_usep:+$A2U__USEP}%%__ITER__%%
 				;;
 			'%U')
-				for carg in "$@"; do
-					urlencode "$carg"
-					carg=$A2U__URLENCODED_STRING
-					debug "injector extending '$arg' with '$carg'"
-					exec_usep=${exec_usep}${exec_usep:+$A2U__USEP}${carg}
+				for a2u__carg in "$@"; do
+					urlencode "$a2u__carg"
+					a2u__carg=$A2U__URLENCODED_STRING
+					debug "injector extending '$a2u__arg' with '$a2u__carg'"
+					a2u__exec_usep=${a2u__exec_usep}${a2u__exec_usep:+$A2U__USEP}${a2u__carg}
 				done
 				;;
-			*) error "${A2U__ENTRY_ID}: not implemented '$arg'" ;;
+			*) error "${A2U__ENTRY_ID}: not implemented '$a2u__arg'" ;;
 			esac
 			;;
 		# icon field
 		*[!%]'%i'* | '%i'*)
 			if [ -n "$A2U__ENTRY_ICON" ]; then
-				replace "$arg" "%i" "$A2U__ENTRY_ICON"
-				rarg=$A2U__REPLACED_STR
-				debug "injector replacing '%i': '$arg' -> '$rarg'"
-				exec_usep=${exec_usep}${exec_usep:+$A2U__USEP}${rarg}
+				replace "$a2u__arg" "%i" "$A2U__ENTRY_ICON"
+				a2u__rarg=$A2U__REPLACED_STR
+				debug "injector replacing '%i': '$a2u__arg' -> '$a2u__rarg'"
+				a2u__exec_usep=${a2u__exec_usep}${a2u__exec_usep:+$A2U__USEP}${a2u__rarg}
 			else
-				debug "injector removed '$rarg'"
+				debug "injector removed '$a2u__rarg'"
 			fi
 			;;
 		# name field
 		*[!%]'%c'* | '%c'*)
-			replace "$arg" "%c" "$A2U__ENTRY_NAME"
-			rarg=$A2U__REPLACED_STR
-			debug "injector replacing '%c': '$arg' -> '$rarg'"
-			exec_usep=${exec_usep}${exec_usep:+$A2U__USEP}${rarg}
+			replace "$a2u__arg" "%c" "$A2U__ENTRY_NAME"
+			a2u__rarg=$A2U__REPLACED_STR
+			debug "injector replacing '%c': '$a2u__arg' -> '$a2u__rarg'"
+			a2u__exec_usep=${a2u__exec_usep}${a2u__exec_usep:+$A2U__USEP}${a2u__rarg}
 			;;
 		# literal %
 		*[!%]%%* | %%*)
-			replace "$arg" "%%" "%"
-			rarg=$A2U__REPLACED_STR
-			debug "injector replacing '%%': '$arg' -> '$rarg'"
-			exec_usep=${exec_usep}${exec_usep:+$A2U__USEP}${rarg}
+			replace "$a2u__arg" "%%" "%"
+			a2u__rarg=$A2U__REPLACED_STR
+			debug "injector replacing '%%': '$a2u__arg' -> '$a2u__rarg'"
+			a2u__exec_usep=${a2u__exec_usep}${a2u__exec_usep:+$A2U__USEP}${a2u__rarg}
 			;;
 		# invalid field
 		*%?* | *[!%]%)
-			error "${A2U__ENTRY_ID}: unknown % field in argument '${arg}'"
+			error "${A2U__ENTRY_ID}: unknown % field in argument '${a2u__arg}'"
 			return 1
 			;;
 		*)
-			debug "injector keeped: '$arg'"
-			exec_usep=${exec_usep}${exec_usep:+$A2U__USEP}${arg}
+			debug "injector keeped: '$a2u__arg'"
+			a2u__exec_usep=${a2u__exec_usep}${a2u__exec_usep:+$A2U__USEP}${a2u__arg}
 			;;
 		esac
 	done
 	# fill A2U__EXEC_RSEP_USEP with argument iterations
-	if [ -n "$exec_iter_usep" ]; then
+	if [ -n "$a2u__exec_iter_usep" ]; then
 		A2U__EXEC_RSEP_USEP=
-		for arg in $exec_iter_usep; do
-			replace "$exec_usep" "%%__ITER__%%" "$arg"
-			cmd=$A2U__REPLACED_STR
-			A2U__EXEC_RSEP_USEP=${A2U__EXEC_RSEP_USEP}${A2U__EXEC_RSEP_USEP:+$A2U__RSEP}${cmd}
+		for a2u__arg in $a2u__exec_iter_usep; do
+			replace "$a2u__exec_usep" "%%__ITER__%%" "$a2u__arg"
+			a2u__cmd=$A2U__REPLACED_STR
+			A2U__EXEC_RSEP_USEP=${A2U__EXEC_RSEP_USEP}${A2U__EXEC_RSEP_USEP:+$A2U__RSEP}${a2u__cmd}
 		done
 	else
-		A2U__EXEC_RSEP_USEP=$exec_usep
+		A2U__EXEC_RSEP_USEP=$a2u__exec_usep
 	fi
 	IFS=$A2U__OIFS
 }
 
 parse_entry_key() {
 	# set global vars or fail entry
-	key=$1
-	value=$2
-	action=$3
-	read_exec=$4
-	in_main=$5
-	in_action=$6
+	a2u__key=$1
+	a2u__value=$2
+	a2u__action=$3
+	a2u__read_exec=$4
+	a2u__in_main=$5
+	a2u__in_action=$6
 
-	case "${in_action};${key}" in
+	case "${a2u__in_action};${a2u__key}" in
 	'false;'* | 'true;Name' | 'true;Name['*']' | 'true;Exec' | 'true;Icon') true ;;
 	*)
-		error "${A2U__ENTRY_ID}: Encountered '$key' key inside action!"
+		error "${A2U__ENTRY_ID}: Encountered '$a2u__key' key inside action!"
 		return 1
 		;;
 	esac
 
-	case "$key" in
+	case "$a2u__key" in
 	Type)
-		debug "captured '$key' '$value'"
-		case "$value" in
-		Application | Link) A2U__ENTRY_TYPE=$value ;;
+		debug "captured '$a2u__key' '$a2u__value'"
+		case "$a2u__value" in
+		Application | Link) A2U__ENTRY_TYPE=$a2u__value ;;
 		*)
-			error "${A2U__ENTRY_ID}: Unsupported type '$value'!"
+			error "${A2U__ENTRY_ID}: Unsupported type '$a2u__value'!"
 			return 1
 			;;
 		esac
@@ -726,37 +726,37 @@ parse_entry_key() {
 		# `It is not valid to have an action group for an action identifier not mentioned in the Actions key.
 		# Such an action group must be ignored by implementors.`
 		# ignore if no action requested
-		[ -z "$action" ] && return 0
-		debug "checking for '$action' in Actions '$value'"
+		[ -z "$a2u__action" ] && return 0
+		debug "checking for '$a2u__action' in Actions '$a2u__value'"
 		IFS=';'
-		for check_action in $value; do
-			case "$check_action" in
-			"$action")
+		for a2u__check_action in $a2u__value; do
+			case "$a2u__check_action" in
+			"$a2u__action")
 				IFS=$A2U__OIFS
-				action_listed=true
+				a2u__action_listed=true
 				return 0
 				;;
 			esac
 		done
-		error "${A2U__ENTRY_ID}: Action '$action' is not listed in entry!"
+		error "${A2U__ENTRY_ID}: Action '$a2u__action' is not listed in entry!"
 		return 1
 		;;
 	TryExec)
-		if [ -z "$value" ]; then
-			debug "ignored empty '$key'"
+		if [ -z "$a2u__value" ]; then
+			debug "ignored empty '$a2u__key'"
 			return 0
 		fi
-		debug "checking TryExec executable '$value'"
-		de_expand_str "$value"
-		value=$A2U__EXPANDED_STR
-		if ! command -v "$value" > /dev/null 2>&1; then
-			error "${A2U__ENTRY_ID}: TryExec '$value' failed!"
+		debug "checking TryExec executable '$a2u__value'"
+		de_expand_str "$a2u__value"
+		a2u__value=$A2U__EXPANDED_STR
+		if ! command -v "$a2u__value" > /dev/null 2>&1; then
+			error "${A2U__ENTRY_ID}: TryExec '$a2u__value' failed!"
 			return 1
 		fi
 		;;
 	Hidden)
-		debug "checking boolean Hidden '$value'"
-		case "$value" in
+		debug "checking boolean Hidden '$a2u__value'"
+		case "$a2u__value" in
 		true)
 			error "${A2U__ENTRY_ID}: Entry is Hidden"
 			return 1
@@ -764,40 +764,40 @@ parse_entry_key() {
 		esac
 		;;
 	Exec)
-		case "$read_exec" in
+		case "$a2u__read_exec" in
 		false)
 			debug "ignored Exec from wrong section"
 			return 0
 			;;
 		esac
-		case "$in_action" in
-		true) action_exec=true ;;
+		case "$a2u__in_action" in
+		true) a2u__action_exec=true ;;
 		esac
-		debug "read Exec '$value'"
+		debug "read Exec '$a2u__value'"
 		# skip acutal reading if array is already filled
 		if [ -n "$A2U__EXEC_RSEP_USEP" ]; then
 			debug "skipping re-filling exec array"
 			return 0
 		fi
 		# expand string-level escape sequences
-		de_expand_str "$value"
+		de_expand_str "$a2u__value"
 		# Split Exec and save as string delimited by unit separator
 		de_tokenize_exec "$A2U__EXPANDED_STR"
 		A2U__EXEC_RSEP_USEP=$A2U__EXEC_USEP
 		# get Exec[0]
-		IFS=$A2U__USEP read -r exec0 _rest <<- EOCMD
+		IFS=$A2U__USEP read -r a2u__exec0 _rest <<- EOCMD
 			$A2U__EXEC_RSEP_USEP
 		EOCMD
-		case "$exec0" in
+		case "$a2u__exec0" in
 		'')
 			error "${A2U__ENTRY_ID}: Could not extract Exec[0]!"
 			return 1
 			;;
 		*/*)
-			A2U__EXEC_NAME=${exec0##*/}
-			A2U__EXEC_PATH=${exec0}
+			A2U__EXEC_NAME=${a2u__exec0##*/}
+			A2U__EXEC_PATH=${a2u__exec0}
 			;;
-		*) A2U__EXEC_NAME=${exec0} ;;
+		*) A2U__EXEC_NAME=${a2u__exec0} ;;
 		esac
 		debug "checking Exec[0] executable '${A2U__EXEC_PATH:-$A2U__EXEC_NAME}'"
 		if ! command -v "${A2U__EXEC_PATH:-$A2U__EXEC_NAME}" > /dev/null 2>&1; then
@@ -806,68 +806,68 @@ parse_entry_key() {
 		fi
 		;;
 	URL)
-		debug "captured '$key' '$value'"
-		de_expand_str "$value"
+		debug "captured '$a2u__key' '$a2u__value'"
+		de_expand_str "$a2u__value"
 		A2U__ENTRY_URL=$A2U__EXPANDED_STR
 		;;
 	"Name[${A2U__LCODE}]")
-		case "${in_main}_${in_action}_${value}" in
-		true_false_ | false_true_) debug "discarded empty '$key'" ;;
+		case "${a2u__in_main}_${a2u__in_action}_${a2u__value}" in
+		true_false_ | false_true_) debug "discarded empty '$a2u__key'" ;;
 		true_false_*)
-			debug "captured '$key' '$value'"
-			de_expand_str "$value"
+			debug "captured '$a2u__key' '$a2u__value'"
+			de_expand_str "$a2u__value"
 			A2U__ENTRY_NAME_L=$A2U__EXPANDED_STR
 			;;
 		false_true_*)
-			debug "captured '$key' '$value'"
-			de_expand_str "$value"
+			debug "captured '$a2u__key' '$a2u__value'"
+			de_expand_str "$a2u__value"
 			A2U__ENTRY_NAME_L_ACTION=$A2U__EXPANDED_STR
 			;;
-		*) debug "discarded '$key' '$value'" ;;
+		*) debug "discarded '$a2u__key' '$a2u__value'" ;;
 		esac
 		;;
 	Name)
-		case "${in_main}_${in_action}_${value}" in
-		true_false_ | false_true_) debug "discarded empty '$key'" ;;
+		case "${a2u__in_main}_${a2u__in_action}_${a2u__value}" in
+		true_false_ | false_true_) debug "discarded empty '$a2u__key'" ;;
 		true_false_*)
-			debug "captured '$key' '$value'"
-			de_expand_str "$value"
+			debug "captured '$a2u__key' '$a2u__value'"
+			de_expand_str "$a2u__value"
 			A2U__ENTRY_NAME=$A2U__EXPANDED_STR
 			;;
 		false_true_*)
-			debug "captured '$key' '$value'"
-			de_expand_str "$value"
+			debug "captured '$a2u__key' '$a2u__value'"
+			de_expand_str "$a2u__value"
 			A2U__ENTRY_NAME_ACTION=$A2U__EXPANDED_STR
 			;;
-		*) debug "discarded '$key' '$value'" ;;
+		*) debug "discarded '$a2u__key' '$a2u__value'" ;;
 		esac
 		;;
 	"GenericName[${A2U__LCODE}]")
-		debug "captured '$key' '$value'"
-		de_expand_str "$value"
+		debug "captured '$a2u__key' '$a2u__value'"
+		de_expand_str "$a2u__value"
 		A2U__ENTRY_GENERICNAME_L=$A2U__EXPANDED_STR
 		;;
 	GenericName)
-		debug "captured '$key' '$value'"
-		de_expand_str "$value"
+		debug "captured '$a2u__key' '$a2u__value'"
+		de_expand_str "$a2u__value"
 		A2U__ENTRY_GENERICNAME=$A2U__EXPANDED_STR
 		;;
 	Icon)
-		if [ -n "$value" ] && { [ "$in_main" = "true" ] || [ "$in_action" = "true" ]; }; then
-			debug "captured '$key' '$value'"
-			de_expand_str "$value"
+		if [ -n "$a2u__value" ] && { [ "$a2u__in_main" = "true" ] || [ "$a2u__in_action" = "true" ]; }; then
+			debug "captured '$a2u__key' '$a2u__value'"
+			de_expand_str "$a2u__value"
 			A2U__ENTRY_ICON=$A2U__EXPANDED_STR
 		else
-			debug "discarded '$key' '$value'"
+			debug "discarded '$a2u__key' '$a2u__value'"
 		fi
 		;;
 	Path)
-		if [ -z "$value" ]; then
-			debug "ignored empty '$key'"
+		if [ -z "$a2u__value" ]; then
+			debug "ignored empty '$a2u__key'"
 			return 0
 		fi
-		debug "captured '$key' '$value'"
-		de_expand_str "$value"
+		debug "captured '$a2u__key' '$a2u__value'"
+		de_expand_str "$a2u__value"
 		A2U__ENTRY_WORKDIR=$A2U__EXPANDED_STR
 		if [ ! -e "$A2U__ENTRY_WORKDIR" ]; then
 			error "${A2U__ENTRY_ID}: Requested 'Path' '${A2U__ENTRY_WORKDIR}' does not exist!"
@@ -878,14 +878,14 @@ parse_entry_key() {
 		fi
 		;;
 	Terminal)
-		debug "captured '$key' '$value'"
+		debug "captured '$a2u__key' '$a2u__value'"
 		case "$A2U__FUZZEL_COMPAT" in
 		true)
 			debug "ignoring Terminal in fuzzel compat mode"
 			return 0
 			;;
 		esac
-		case "$value" in
+		case "$a2u__value" in
 		true)
 			# if terminal was not requested explicitly, check terminal handler
 			case "$A2U__TERMINAL" in
@@ -901,82 +901,82 @@ parse_entry_key() {
 
 read_entry_path() {
 	# Read entry from given path
-	entry_path="$1"
-	entry_action="${2-}"
-	read_exec=false
-	action_listed=false
-	in_main=false
-	in_action=false
-	action_exec=false
-	break_on_next_section=false
+	a2u__entry_path="$1"
+	a2u__entry_action="${2-}"
+	a2u__read_exec=false
+	a2u__action_listed=false
+	a2u__in_main=false
+	a2u__in_action=false
+	a2u__action_exec=false
+	a2u__break_on_next_section=false
 	# shellcheck disable=SC2016
-	debug "reading desktop entry '$entry_path'${entry_action:+ action '$entry_action'}"
+	debug "reading desktop entry '$a2u__entry_path'${a2u__entry_action:+ action '$a2u__entry_action'}"
 	# Let `read` trim leading/trailing whitespace from the line
-	while read -r line; do
-		case $line in
+	while read -r a2u__line; do
+		case $a2u__line in
 		# `There should be nothing preceding [the Desktop Entry group] in the desktop entry file but [comments]`
 		# if entry_action is not requested, allow reading Exec right away from the main group
 		'[Desktop Entry]'*)
-			debug "entered section: $line"
-			in_main=true
-			if [ -z "$entry_action" ]; then
-				read_exec=true
-				break_on_next_section=true
+			debug "entered section: $a2u__line"
+			a2u__in_main=true
+			if [ -z "$a2u__entry_action" ]; then
+				a2u__read_exec=true
+				a2u__break_on_next_section=true
 			fi
 			;;
 		# A `Key=Value` pair
 		[a-zA-Z0-9-]*=*)
 			# Split
-			IFS='=' read -r key value <<- EOL
-				$line
+			IFS='=' read -r a2u__key a2u__value <<- EOL
+				$a2u__line
 			EOL
 			# Trim
-			{ read -r key && read -r value; } <<- EOL
-				$key
-				$value
+			{ read -r a2u__key && read -r a2u__value; } <<- EOL
+				$a2u__key
+				$a2u__value
 			EOL
 			# Parse key, or abort
-			parse_entry_key "$key" "$value" "$entry_action" "$read_exec" "$in_main" "$in_action" || return 1
+			parse_entry_key "$a2u__key" "$a2u__value" "$a2u__entry_action" "$a2u__read_exec" "$a2u__in_main" "$a2u__in_action" || return 1
 			;;
 		# found requested action, allow reading Exec
-		"[Desktop Action ${entry_action}]"*)
-			debug "entered section: $line"
-			in_main=false
-			break_on_next_section=true
-			case "$action_listed" in
+		"[Desktop Action ${a2u__entry_action}]"*)
+			debug "entered section: $a2u__line"
+			a2u__in_main=false
+			a2u__break_on_next_section=true
+			case "$a2u__action_listed" in
 			true)
-				read_exec=true
-				in_action=true
+				a2u__read_exec=true
+				a2u__in_action=true
 				;;
 			*)
-				error "${A2U__ENTRY_ID}: Action '$entry_action' is not listed in Actions key!"
+				error "${A2U__ENTRY_ID}: Action '$a2u__entry_action' is not listed in Actions key!"
 				return 1
 				;;
 			esac
 			;;
 		# Start of the next group header, stop if already read exec
 		'['*)
-			debug "entered section: $line"
-			[ "$break_on_next_section" = "true" ] && break
-			in_main=false
-			in_action=false
-			read_exec=false
+			debug "entered section: $a2u__line"
+			[ "$a2u__break_on_next_section" = "true" ] && break
+			a2u__in_main=false
+			a2u__in_action=false
+			a2u__read_exec=false
 			;;
 		esac
 		# By default empty lines and comments get ignored
-	done < "$entry_path"
+	done < "$a2u__entry_path"
 
 	# check for required things for action
-	if [ -n "$entry_action" ]; then
-		case "$action_listed" in
+	if [ -n "$a2u__entry_action" ]; then
+		case "$a2u__action_listed" in
 		true) true ;;
 		*)
-			error "${A2U__ENTRY_ID}: Action '$entry_action' is not listed in Actions key or does not exist!"
+			error "${A2U__ENTRY_ID}: Action '$a2u__entry_action' is not listed in Actions key or does not exist!"
 			return 1
 			;;
 		esac
-		if [ "$action_exec" != "true" ] || [ -z "${A2U__ENTRY_NAME_L_ACTION:-${A2U__ENTRY_NAME_ACTION:-}}" ]; then
-			error "${A2U__ENTRY_ID}: Action '$entry_action' is incomplete"
+		if [ "$a2u__action_exec" != "true" ] || [ -z "${A2U__ENTRY_NAME_L_ACTION:-${A2U__ENTRY_NAME_ACTION:-}}" ]; then
+			error "${A2U__ENTRY_ID}: Action '$a2u__entry_action' is incomplete"
 			return 1
 		fi
 	fi
@@ -1038,37 +1038,37 @@ validate_action_id() {
 urlencode() {
 	# pretty dumb urlencode
 	# writes to A2U__URLENCODED_STRING var
-	ue_string=$1
-	case "$ue_string" in
+	a2u__ue_string=$1
+	case "$a2u__ue_string" in
 	# assuming already url
 	*[a-zA-Z0-9_-]://*)
-		A2U__URLENCODED_STRING=$ue_string
+		A2U__URLENCODED_STRING=$a2u__ue_string
 		return
 		;;
 	# assuming absolute path
 	/*) true ;;
 	# assuming relative path
-	*) ue_string=${PWD}/$ue_string ;;
+	*) a2u__ue_string=${PWD}/$a2u__ue_string ;;
 	esac
 
 	A2U__URLENCODED_STRING='file://'
 
-	case "$ue_string" in
+	case "$a2u__ue_string" in
 	# if contains extra chars, encode
 	*[!._~0-9A-Za-z/-]*)
-		while [ -n "$ue_string" ]; do
-			ue_right=${ue_string#?}
-			ue_char=${ue_string%"$ue_right"}
-			debug "urlencode string $ue_string" "urlencode right $ue_right" "urlencode char $ue_char"
-			case $ue_char in
-			[._~0-9A-Za-z/-]) A2U__URLENCODED_STRING=${A2U__URLENCODED_STRING}$ue_char ;;
-			*) A2U__URLENCODED_STRING=${A2U__URLENCODED_STRING}$(printf '%%%02x' "'$ue_char") ;;
+		while [ -n "$a2u__ue_string" ]; do
+			a2u__ue_right=${a2u__ue_string#?}
+			a2u__ue_char=${a2u__ue_string%"$a2u__ue_right"}
+			debug "urlencode string $a2u__ue_string" "urlencode right $a2u__ue_right" "urlencode char $a2u__ue_char"
+			case $a2u__ue_char in
+			[._~0-9A-Za-z/-]) A2U__URLENCODED_STRING=${A2U__URLENCODED_STRING}$a2u__ue_char ;;
+			*) A2U__URLENCODED_STRING=${A2U__URLENCODED_STRING}$(printf '%%%02x' "'$a2u__ue_char") ;;
 			esac
-			ue_string=$ue_right
+			a2u__ue_string=$a2u__ue_right
 		done
 		;;
 	# no extra chars, append as is
-	*) A2U__URLENCODED_STRING=${A2U__URLENCODED_STRING}$ue_string ;;
+	*) A2U__URLENCODED_STRING=${A2U__URLENCODED_STRING}$a2u__ue_string ;;
 	esac
 }
 
@@ -1177,8 +1177,8 @@ systemd_run() {
 
 	# prepend extra properties
 	IFS=${A2U__USEP}
-	for prop in $A2U__UNIT_PROPERTIES; do
-		set -- "--property=${prop}" "$@"
+	for a2u__prop in $A2U__UNIT_PROPERTIES; do
+		set -- "--property=${a2u__prop}" "$@"
 	done
 	IFS=${A2U__OIFS}
 
@@ -1208,18 +1208,18 @@ systemd_run() {
 		out)
 			set -- --property=StandardOutput=null "$@"
 			# unsilence stderr if it is inheriting
-			dso=
-			dse=
-			while IFS='=' read -r key value; do
-				case "$key" in
-				DefaultStandardOutput) dso=$value ;;
-				DefaultStandardError) dse=$value ;;
+			a2u__dso=
+			a2u__dse=
+			while IFS='=' read -r a2u__key a2u__value; do
+				case "$a2u__key" in
+				DefaultStandardOutput) a2u__dso=$a2u__value ;;
+				DefaultStandardError) a2u__dse=$a2u__value ;;
 				esac
 			done <<- EOF
 				$(systemctl --user show --property DefaultStandardOutput --property DefaultStandardError)
 			EOF
-			case "$dse" in
-			inherit) set -- --property=StandardError="$dso" "$@" ;;
+			case "$a2u__dse" in
+			inherit) set -- --property=StandardError="$a2u__dso" "$@" ;;
 			esac
 			;;
 		# silence err
@@ -1344,32 +1344,32 @@ check_terminal_handler() {
 get_mime() {
 	# gets mime type of file or url
 	# writes to A2U__MIME var
-	f_mime=
+	a2u__f_mime=
 	case "$1" in
 	[a-zA-Z]*:*)
-		IFS=':' read -r scheme _rest <<- EOF
+		IFS=':' read -r a2u__scheme _rest <<- EOF
 			$1
 		EOF
-		debug "potential scheme '$scheme'"
-		case "$scheme" in
+		debug "potential scheme '$a2u__scheme'"
+		case "$a2u__scheme" in
 		*[!a-zA-Z0-9+.-]*)
-			debug "not a valid scheme '$scheme', assuming file"
-			f_mime=$(xdg-mime query filetype "$1")
+			debug "not a valid scheme '$a2u__scheme', assuming file"
+			a2u__f_mime=$(xdg-mime query filetype "$1")
 			;;
-		*) f_mime=x-scheme-handler/$scheme ;;
+		*) a2u__f_mime=x-scheme-handler/$a2u__scheme ;;
 		esac
 		;;
-	*) f_mime=$(xdg-mime query filetype "$1") ;;
+	*) a2u__f_mime=$(xdg-mime query filetype "$1") ;;
 	esac
 
-	case "$f_mime" in
+	case "$a2u__f_mime" in
 	'' | 'x-scheme-handler/')
 		error "Could not query mime type for '$1'"
 		return 1
 		;;
 	*)
-		debug "got mime '$f_mime' for '$1'"
-		A2U__MIME=$f_mime
+		debug "got mime '$a2u__f_mime' for '$1'"
+		A2U__MIME=$a2u__f_mime
 		;;
 	esac
 }
@@ -1377,11 +1377,11 @@ get_mime() {
 get_assoc() {
 	# gets file association for mime type
 	# writes to A2U__ASSOC var
-	f_assoc=$(xdg-mime query default "$1")
-	case "$f_assoc" in
+	a2u__f_assoc=$(xdg-mime query default "$1")
+	case "$a2u__f_assoc" in
 	?*.desktop)
-		debug "got association '$f_assoc' for mime '$1'"
-		A2U__ASSOC=$f_assoc
+		debug "got association '$a2u__f_assoc' for mime '$1'"
+		A2U__ASSOC=$a2u__f_assoc
 		;;
 	*)
 		error "Could not query association for mime '$1'"
@@ -1435,32 +1435,32 @@ esac
 # deal with unit slice choices and default
 A2U__UNIT_SLICE_ID=
 A2U__UNIT_SLICE_CHOICES=${APP2UNIT_SLICES:-"a=app.slice b=background.slice s=session.slice"}
-for choice in $A2U__UNIT_SLICE_CHOICES; do
-	debug "evaluating slice choice '$choice'"
-	slice_abbr=
-	slice_id=
-	case "$choice" in
+for a2u__choice in $A2U__UNIT_SLICE_CHOICES; do
+	debug "evaluating slice choice '$a2u__choice'"
+	a2u__slice_abbr=
+	a2u__slice_id=
+	case "$a2u__choice" in
 	*[!a-zA-Z0-9=._-]* | *=*=* | *[!a-z]*=* | *=[!a-zA-Z0-9._-]* | *[!.][!s][!l][!i][!c][!e])
-		error "Invalid slice choice '$choice', ignoring."
+		error "Invalid slice choice '$a2u__choice', ignoring."
 		continue
 		;;
 	[a-z]*=[a-zA-Z0-9_.-]*.slice)
-		IFS='=' read -r slice_abbr slice_id <<- EOF
-			$choice
+		IFS='=' read -r a2u__slice_abbr a2u__slice_id <<- EOF
+			$a2u__choice
 		EOF
 		;;
 	*)
-		error "Invalid slice choice '$choice', ignoring."
+		error "Invalid slice choice '$a2u__choice', ignoring."
 		continue
 		;;
 	esac
 	if [ -z "$A2U__UNIT_SLICE_ID" ]; then
 		A2U__UNIT_SLICE_CHOICES=
-		A2U__UNIT_SLICE_ID="${slice_id}"
-		debug "reset default slice as '${slice_id}'"
+		A2U__UNIT_SLICE_ID="${a2u__slice_id}"
+		debug "reset default slice as '${a2u__slice_id}'"
 	fi
-	debug "adding choice ${slice_abbr}=${slice_id}"
-	A2U__UNIT_SLICE_CHOICES=${A2U__UNIT_SLICE_CHOICES}${A2U__UNIT_SLICE_CHOICES:+ }${slice_abbr}=${slice_id}
+	debug "adding choice ${a2u__slice_abbr}=${a2u__slice_id}"
+	A2U__UNIT_SLICE_CHOICES=${A2U__UNIT_SLICE_CHOICES}${A2U__UNIT_SLICE_CHOICES:+ }${a2u__slice_abbr}=${a2u__slice_id}
 done
 if [ -z "$A2U__UNIT_SLICE_ID" ]; then
 	A2U__UNIT_SLICE_ID=app.slice
@@ -1482,7 +1482,7 @@ A2U__TERMINAL=false
 A2U__FUZZEL_COMPAT=false
 A2U__OPENER_MODE=false
 
-capture_terminal_args=false
+a2u__capture_terminal_args=false
 case "$A2U__SELF_NAME" in
 *-open | *-open-scope | *-open-service)
 	A2U__OPENER_MODE=true
@@ -1493,7 +1493,7 @@ case "$A2U__SELF_NAME" in
 	;;
 *-term | *-terminal | *-term-scope | *-terminal-scope | *-term-service | *-terminal-service)
 	A2U__TERMINAL=true
-	capture_terminal_args=true
+	a2u__capture_terminal_args=true
 	case "$A2U__SELF_NAME" in
 	*-scope) A2U__UNIT_TYPE=scope ;;
 	*-service) A2U__UNIT_TYPE=service ;;
@@ -1509,40 +1509,40 @@ A2U__LCODE=${A2U__LCODE%_*}
 A2U__LCODE=${A2U__LCODE:-NOLCODE}
 
 # expand short args
-first=true
-found_delim=false
-for arg in "$@"; do
-	case "$first" in
+a2u__first=true
+a2u__found_delim=false
+for a2u__arg in "$@"; do
+	case "$a2u__first" in
 	true)
 		set --
-		first=false
+		a2u__first=false
 		;;
 	esac
-	case "$found_delim" in
+	case "$a2u__found_delim" in
 	true)
-		set -- "$@" "$arg"
+		set -- "$@" "$a2u__arg"
 		continue
 		;;
 	esac
-	case "$arg" in
+	case "$a2u__arg" in
 	--)
-		found_delim=true
-		set -- "$@" "$arg"
+		a2u__found_delim=true
+		set -- "$@" "$a2u__arg"
 		;;
 	-[a-zA-Z][a-zA-Z]*)
-		arg=${arg#-}
-		while [ -n "$arg" ]; do
-			cut=${arg#?}
-			char=${arg%"$cut"}
-			set -- "$@" "-$char"
-			arg=$cut
+		a2u__arg=${a2u__arg#-}
+		while [ -n "$a2u__arg" ]; do
+			a2u__cut=${a2u__arg#?}
+			a2u__char=${a2u__arg%"$a2u__cut"}
+			set -- "$@" "-$a2u__char"
+			a2u__arg=$a2u__cut
 		done
 		;;
-	*) set -- "$@" "$arg" ;;
+	*) set -- "$@" "$a2u__arg" ;;
 	esac
 done
 
-part_of_gst_set=false
+a2u__part_of_gst_set=false
 # parse args
 A2U__TERMINAL_ARGS_USEP=
 while [ "$#" -gt "0" ]; do
@@ -1568,13 +1568,13 @@ while [ "$#" -gt "0" ]; do
 			continue
 			;;
 		*)
-			for choice in $A2U__UNIT_SLICE_CHOICES; do
-				IFS='=' read -r slice_abbr slice_id <<- EOF
-					$choice
+			for a2u__choice in $A2U__UNIT_SLICE_CHOICES; do
+				IFS='=' read -r a2u__slice_abbr a2u__slice_id <<- EOF
+					$a2u__choice
 				EOF
-				case "$slice_abbr" in
+				case "$a2u__slice_abbr" in
 				"$2")
-					A2U__UNIT_SLICE_ID=$slice_id
+					A2U__UNIT_SLICE_ID=$a2u__slice_id
 					shift 2
 					continue 2
 					;;
@@ -1635,7 +1635,7 @@ while [ "$#" -gt "0" ]; do
 		shift 2
 		;;
 	-c)
-		case "$part_of_gst_set" in
+		case "$a2u__part_of_gst_set" in
 		true)
 			error "-c conflicts with -C" "$(usage)"
 			exit 1
@@ -1643,11 +1643,11 @@ while [ "$#" -gt "0" ]; do
 		esac
 		debug "arg '$1'"
 		A2U__PART_OF_GST=false
-		part_of_gst_set=true
+		a2u__part_of_gst_set=true
 		shift
 		;;
 	-C)
-		case "$part_of_gst_set" in
+		case "$a2u__part_of_gst_set" in
 		true)
 			error "-C conflicts with -c" "$(usage)"
 			exit 1
@@ -1655,7 +1655,7 @@ while [ "$#" -gt "0" ]; do
 		esac
 		debug "arg '$1'"
 		A2U__PART_OF_GST=true
-		part_of_gst_set=true
+		a2u__part_of_gst_set=true
 		shift
 		;;
 	-S)
@@ -1671,7 +1671,7 @@ while [ "$#" -gt "0" ]; do
 		;;
 	-T)
 		A2U__TERMINAL=true
-		capture_terminal_args=true
+		a2u__capture_terminal_args=true
 		debug "arg '$1'"
 		check_terminal_handler
 		shift
@@ -1713,7 +1713,7 @@ while [ "$#" -gt "0" ]; do
 		break
 		;;
 	-*)
-		case "$capture_terminal_args" in
+		case "$a2u__capture_terminal_args" in
 		false)
 			error "Unknown option '$1'!" "$(usage)"
 			exit 1
@@ -1755,16 +1755,16 @@ if [ "$A2U__OPENER_MODE" = "true" ]; then
 	fi
 	A2U__MAIN_ARG=
 	# determine if file or URL, get associations for A2U__MAIN_ARG
-	for arg in "$@"; do
-		get_mime "$arg"
-		mime=$A2U__MIME
-		get_assoc "$mime"
-		assoc=$A2U__ASSOC
+	for a2u__arg in "$@"; do
+		get_mime "$a2u__arg"
+		a2u__mime=$A2U__MIME
+		get_assoc "$a2u__mime"
+		a2u__assoc=$A2U__ASSOC
 		if [ -z "$A2U__MAIN_ARG" ]; then
-			debug "setting A2U__MAIN_ARG from association for '$arg': '$assoc'"
-			A2U__MAIN_ARG=$assoc
-		elif [ "$A2U__MAIN_ARG" = "$assoc" ]; then
-			debug "arg '$arg' has the same association"
+			debug "setting A2U__MAIN_ARG from association for '$a2u__arg': '$a2u__assoc'"
+			A2U__MAIN_ARG=$a2u__assoc
+		elif [ "$A2U__MAIN_ARG" = "$a2u__assoc" ]; then
+			debug "arg '$a2u__arg' has the same association"
 			true
 		else
 			error "Can not open multiple files/URLs with different associations"
@@ -1780,15 +1780,15 @@ elif [ "$A2U__FUZZEL_COMPAT" = "true" ]; then
 		error "Executable not found: '$1'"
 		exit 127
 	fi
-	for item in "$@"; do
-		A2U__EXEC_RSEP_USEP=${A2U__EXEC_RSEP_USEP}${item}${A2U__USEP}
+	for a2u__item in "$@"; do
+		A2U__EXEC_RSEP_USEP=${A2U__EXEC_RSEP_USEP}${a2u__item}${A2U__USEP}
 	done
 	A2U__EXEC_RSEP_USEP=${A2U__EXEC_RSEP_USEP%"$A2U__USEP"}
 elif [ "$#" -eq "0" ] && [ "$A2U__TERMINAL" = "true" ]; then
 	# special case for launching just terminal
 
 	# get entry path and cmdline from terminal handler
-	if path_and_cmd=$(
+	if a2u__path_and_cmd=$(
 		IFS=$A2U__USEP
 		# shellcheck disable=SC2086
 		set -- $A2U__TERMINAL_ARGS_USEP
@@ -1796,11 +1796,11 @@ elif [ "$#" -eq "0" ] && [ "$A2U__TERMINAL" = "true" ]; then
 		# prevent old xdg-terminal-exec from running anything
 		unset DISPLAY WAYLAND_DISPLAY
 		"$A2U__TERMINAL_HANDLER" --print-path --print-cmd='\037' "$@"
-	) && case "$path_and_cmd" in '/'*".desktop$A2U__LF"* | '/'*'.desktop:'*"$A2U__LF"*) true ;; *) false ;; esac then
+	) && case "$a2u__path_and_cmd" in '/'*".desktop$A2U__LF"* | '/'*'.desktop:'*"$A2U__LF"*) true ;; *) false ;; esac then
 		# entry path and action before newline
-		A2U__MAIN_ARG=${path_and_cmd%%"$A2U__LF"*}
+		A2U__MAIN_ARG=${a2u__path_and_cmd%%"$A2U__LF"*}
 		# cmd after newline, fill exec array right away
-		A2U__EXEC_RSEP_USEP=${path_and_cmd#*"$A2U__LF"}
+		A2U__EXEC_RSEP_USEP=${a2u__path_and_cmd#*"$A2U__LF"}
 		# shellcheck disable=SC2086
 		[ -z "$A2U__DEBUG" ] || debug "initial args:" "$(printf '  >%s<\n' "$@")" \
 			"replaced A2U__MAIN_ARG with '$A2U__MAIN_ARG'" \
@@ -1831,10 +1831,10 @@ if [ -n "$A2U__ENTRY_PATH" ]; then
 	normpath "$A2U__ENTRY_PATH"
 	A2U__ENTRY_PATH=${A2U__NORMALIZED_PATH}
 	IFS=':'
-	for dir in $A2U__APPLICATIONS_DIRS; do
-		if [ "$A2U__ENTRY_PATH" != "${A2U__ENTRY_PATH#"$dir"}" ]; then
-			A2U__ENTRY_ID_PRE=${A2U__ENTRY_PATH#"$dir"}
-			debug "Processing Entry ID '$A2U__ENTRY_ID_PRE' as deduced in '$dir'"
+	for a2u__dir in $A2U__APPLICATIONS_DIRS; do
+		if [ "$A2U__ENTRY_PATH" != "${A2U__ENTRY_PATH#"$a2u__dir"}" ]; then
+			A2U__ENTRY_ID_PRE=${A2U__ENTRY_PATH#"$a2u__dir"}
+			debug "Processing Entry ID '$A2U__ENTRY_ID_PRE' as deduced in '$a2u__dir'"
 			case "$A2U__ENTRY_ID_PRE" in
 			*/*)
 				replace "$A2U__ENTRY_ID_PRE" "/" "-"
@@ -1866,11 +1866,11 @@ fi
 if [ -n "$A2U__ENTRY_URL" ]; then
 	debug "re-parsing for Link entry URL: $A2U__ENTRY_URL"
 	get_mime "$A2U__ENTRY_URL"
-	mime=$A2U__MIME
-	get_assoc "$mime"
-	assoc=$A2U__ASSOC
+	a2u__mime=$A2U__MIME
+	get_assoc "$a2u__mime"
+	a2u__assoc=$A2U__ASSOC
 	# replace initial vars and arg
-	A2U__ENTRY_ID=$assoc
+	A2U__ENTRY_ID=$a2u__assoc
 	set -- "$A2U__ENTRY_URL"
 	A2U__ENTRY_URL=
 	# re-parse new entry
@@ -1894,12 +1894,12 @@ if [ -n "$A2U__ENTRY_ID" ]; then
 	case "$A2U__EXEC_RSEP_USEP" in
 	*"$A2U__RSEP"*)
 		IFS=$A2U__RSEP
-		first=true
-		pids=
-		for cmd in $A2U__EXEC_RSEP_USEP; do
+		a2u__first=true
+		a2u__pids=
+		for a2u__cmd in $A2U__EXEC_RSEP_USEP; do
 			IFS=$A2U__USEP
 			# shellcheck disable=SC2086
-			set -- $cmd
+			set -- $a2u__cmd
 			IFS=$A2U__OIFS
 			case "$A2U__TERMINAL" in
 			true)
@@ -1912,19 +1912,19 @@ if [ -n "$A2U__ENTRY_ID" ]; then
 				;;
 			esac
 			[ -z "$A2U__DEBUG" ] || debug "entry iteration" "$(printf '  >%s<\n' "$@")"
-			if [ "$first" = "false" ]; then
+			if [ "$a2u__first" = "false" ]; then
 				randomize_unit_id
 			fi
 			systemd_run "$@" &
-			pids=${pids}${pids:+ }$!
-			first=false
+			a2u__pids=${a2u__pids}${a2u__pids:+ }$!
+			a2u__first=false
 		done
-		ec=0
+		a2u__ec=0
 		# shellcheck disable=SC2086
-		for pid in $pids; do
-			wait $pid || ec=1
+		for a2u__pid in $a2u__pids; do
+			wait $a2u__pid || a2u__ec=1
 		done
-		exit $ec
+		exit $a2u__ec
 		;;
 	*)
 		IFS=$A2U__USEP
