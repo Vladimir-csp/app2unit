@@ -912,12 +912,12 @@ read_entry_path() {
 	# shellcheck disable=SC2016
 	debug "reading desktop entry '$a2u__entry_path'${a2u__entry_action:+ action '$a2u__entry_action'}"
 	# Let `read` trim leading/trailing whitespace from the line
-	while read -r a2u__line; do
-		case $a2u__line in
+	while read -r a2u__rep_line; do
+		case $a2u__rep_line in
 		# `There should be nothing preceding [the Desktop Entry group] in the desktop entry file but [comments]`
 		# if entry_action is not requested, allow reading Exec right away from the main group
 		'[Desktop Entry]'*)
-			debug "entered section: $a2u__line"
+			debug "entered section: $a2u__rep_line"
 			a2u__in_main=true
 			if [ -z "$a2u__entry_action" ]; then
 				a2u__read_exec=true
@@ -928,7 +928,7 @@ read_entry_path() {
 		[a-zA-Z0-9-]*=*)
 			# Split
 			IFS='=' read -r a2u__key a2u__value <<- EOL
-				$a2u__line
+				$a2u__rep_line
 			EOL
 			# Trim
 			{ read -r a2u__key && read -r a2u__value; } <<- EOL
@@ -940,7 +940,7 @@ read_entry_path() {
 			;;
 		# found requested action, allow reading Exec
 		"[Desktop Action ${a2u__entry_action}]"*)
-			debug "entered section: $a2u__line"
+			debug "entered section: $a2u__rep_line"
 			a2u__in_main=false
 			a2u__break_on_next_section=true
 			case "$a2u__action_listed" in
@@ -956,7 +956,7 @@ read_entry_path() {
 			;;
 		# Start of the next group header, stop if already read exec
 		'['*)
-			debug "entered section: $a2u__line"
+			debug "entered section: $a2u__rep_line"
 			[ "$a2u__break_on_next_section" = "true" ] && break
 			a2u__in_main=false
 			a2u__in_action=false
@@ -1155,9 +1155,10 @@ randomize_unit_id() {
 	A2U__RANDOM_STRING=${A2U__NEW_RANDOM_STRING}
 }
 
-systemd_run() {
+systemd_run_finalize_usep() {
 	# wrapper for systemd-run
-	# prepend common args
+	# generate and prepend common args, append execution modification flag
+	# fill A2U__FINAL_EXEC_RSEP_USEP
 	A2U__UNIT_SLICE_ID=${A2U__UNIT_SLICE_ID:-app-graphical.slice}
 	if [ -z "$A2U__UNIT_DESCRIPTION" ] && [ -n "${A2U__ENTRY_NAME_L:-$A2U__ENTRY_NAME}" ] && [ -n "${A2U__ENTRY_GENERICNAME_L:-$A2U__ENTRY_GENERICNAME}" ]; then
 		A2U__UNIT_DESCRIPTION="${A2U__ENTRY_NAME_L:-$A2U__ENTRY_NAME} - ${A2U__ENTRY_GENERICNAME_L:-$A2U__ENTRY_GENERICNAME}"
@@ -1230,26 +1231,34 @@ systemd_run() {
 		;;
 	esac
 
-	[ -z "$A2U__DEBUG" ] || debug "systemd run" "$(printf '  >%s<\n' systemd-run "$@")"
+	# final command
+	set -- systemd-run --user "$@"
 
+	[ -z "$A2U__DEBUG" ] || debug "systemd run" "$(printf '  >%s<\n' "$@")"
+
+	# Flag to represent test and scope silence modes
 	# print args in test mode
+	a2u__flag=0
 	case "$A2U__TEST_MODE" in
-	true)
-		printf '%s\n' 'Command and arguments:'
-		printf '  >%s<\n' systemd-run --user "$@"
-		exit 0
+	true) a2u__flag=T ;;
+	*)
+		# silence scope output
+		case "${A2U__UNIT_TYPE}_${A2U__SILENT}" in
+		scope_out) a2u__flag=O ;;
+		scope_err) a2u__flag=E ;;
+		scope_both) a2u__flag=B ;;
+		esac
 		;;
 	esac
 
-	# silence scope output
-	case "${A2U__UNIT_TYPE}_${A2U__SILENT}" in
-	scope_out) exec > /dev/null ;;
-	scope_err) exec 2> /dev/null ;;
-	scope_both) exec > /dev/null 2>&1 ;;
-	esac
+	# compose array with $A2U__USEP separator
+	a2u__command_usep=
+	for a2u__arg in "$@" "${a2u__flag}"; do
+		a2u__command_usep=${a2u__command_usep}${a2u__command_usep:+$A2U__USEP}${a2u__arg}
+	done
 
-	# exec
-	exec systemd-run --user "$@"
+	# Append to A2U__FINAL_EXEC_RSEP_USEP
+	A2U__FINAL_EXEC_RSEP_USEP=${A2U__FINAL_EXEC_RSEP_USEP}${A2U__FINAL_EXEC_RSEP_USEP:+${A2U__RSEP}}${a2u__command_usep}
 }
 
 parse_main_arg() {
@@ -1390,516 +1399,516 @@ get_assoc() {
 	esac
 }
 
-########################
+gen_exec() {
+	# main'ish function, generates command array(s)
+	# commands separated by record separator with extra trailing one
+	# arguments separated by unit separator with [TOEB] function flag appended
+	# writes to A2U__EXEC_RSEP_USEP
 
-[ -z "$A2U__DEBUG" ] || debug "initial args:" "$(printf '  >%s<\n' "$@")"
+	[ -z "$A2U__DEBUG" ] || debug "initial args:" "$(printf '  >%s<\n' "$@")"
 
-A2U__EXEC_NAME=
-A2U__EXEC_PATH=
-A2U__EXEC_RSEP_USEP=
-A2U__ENTRY_PATH=
-A2U__ENTRY_ID=
-A2U__ENTRY_TYPE=
-A2U__ENTRY_URL=
-A2U__ENTRY_NAME=
-A2U__ENTRY_NAME_L=
-A2U__ENTRY_NAME_ACTION=
-A2U__ENTRY_NAME_L_ACTION=
-A2U__ENTRY_GENERICNAME=
-A2U__ENTRY_GENERICNAME_L=
-A2U__ENTRY_ICON=
-A2U__ENTRY_WORKDIR=
-A2U__UNIT_DESCRIPTION=
-A2U__UNIT_ID=
-A2U__UNIT_APP_SUBSTRING=
-A2U__UNIT_PROPERTIES=
-A2U__NORMALIZED_PATH=
+	A2U__TEST_MODE=false
 
-A2U__SILENT=
-A2U__TEST_MODE=false
-
-# vars for expander, tokenizer, injector output
-A2U__EXPANDED_STR=
-A2U__EXEC_USEP=
-A2U__REPLACED_STR=
-
-A2U__UNIT_TYPE=${APP2UNIT_TYPE:-scope}
-case "$A2U__UNIT_TYPE" in
-service | scope) true ;;
-*)
-	error "Unsupported unit type '$A2U__UNIT_TYPE'!"
-	exit 1
-	;;
-esac
-
-# deal with unit slice choices and default
-A2U__UNIT_SLICE_ID=
-A2U__UNIT_SLICE_CHOICES=${APP2UNIT_SLICES:-"a=app.slice b=background.slice s=session.slice"}
-for a2u__choice in $A2U__UNIT_SLICE_CHOICES; do
-	debug "evaluating slice choice '$a2u__choice'"
-	a2u__slice_abbr=
-	a2u__slice_id=
-	case "$a2u__choice" in
-	*[!a-zA-Z0-9=._-]* | *=*=* | *[!a-z]*=* | *=[!a-zA-Z0-9._-]* | *[!.][!s][!l][!i][!c][!e])
-		error "Invalid slice choice '$a2u__choice', ignoring."
-		continue
-		;;
-	[a-z]*=[a-zA-Z0-9_.-]*.slice)
-		IFS='=' read -r a2u__slice_abbr a2u__slice_id <<- EOF
-			$a2u__choice
-		EOF
-		;;
+	A2U__UNIT_TYPE=${APP2UNIT_TYPE:-scope}
+	case "$A2U__UNIT_TYPE" in
+	service | scope) true ;;
 	*)
-		error "Invalid slice choice '$a2u__choice', ignoring."
-		continue
+		error "Unsupported unit type '$A2U__UNIT_TYPE'!"
+		exit 1
 		;;
 	esac
-	if [ -z "$A2U__UNIT_SLICE_ID" ]; then
-		A2U__UNIT_SLICE_CHOICES=
-		A2U__UNIT_SLICE_ID="${a2u__slice_id}"
-		debug "reset default slice as '${a2u__slice_id}'"
-	fi
-	debug "adding choice ${a2u__slice_abbr}=${a2u__slice_id}"
-	A2U__UNIT_SLICE_CHOICES=${A2U__UNIT_SLICE_CHOICES}${A2U__UNIT_SLICE_CHOICES:+ }${a2u__slice_abbr}=${a2u__slice_id}
-done
-if [ -z "$A2U__UNIT_SLICE_ID" ]; then
-	A2U__UNIT_SLICE_ID=app.slice
-	debug "falling back to default slice 'app.slice'"
-fi
 
-A2U__PART_OF_GST=true
-if [ -z "${APP2UNIT_PART_OF_GST:-}" ]; then
-	A2U__PART_OF_GST=true
-else
-	if check_bool "$APP2UNIT_PART_OF_GST"; then
-		A2U__PART_OF_GST=true
-	else
-		A2U__PART_OF_GST=false
-	fi
-fi
-
-A2U__TERMINAL=false
-A2U__FUZZEL_COMPAT=false
-A2U__OPENER_MODE=false
-
-a2u__capture_terminal_args=false
-case "$A2U__SELF_NAME" in
-*-open | *-open-scope | *-open-service)
-	A2U__OPENER_MODE=true
-	case "$A2U__SELF_NAME" in
-	*-scope) A2U__UNIT_TYPE=scope ;;
-	*-service) A2U__UNIT_TYPE=service ;;
-	esac
-	;;
-*-term | *-terminal | *-term-scope | *-terminal-scope | *-term-service | *-terminal-service)
-	A2U__TERMINAL=true
-	a2u__capture_terminal_args=true
-	case "$A2U__SELF_NAME" in
-	*-scope) A2U__UNIT_TYPE=scope ;;
-	*-service) A2U__UNIT_TYPE=service ;;
-	esac
-	;;
-esac
-
-# will be set where needed
-A2U__RANDOM_STRING=
-
-A2U__LCODE=${LANGUAGE:-"$LANG"}
-A2U__LCODE=${A2U__LCODE%_*}
-A2U__LCODE=${A2U__LCODE:-NOLCODE}
-
-# expand short args
-a2u__first=true
-a2u__found_delim=false
-for a2u__arg in "$@"; do
-	case "$a2u__first" in
-	true)
-		set --
-		a2u__first=false
-		;;
-	esac
-	case "$a2u__found_delim" in
-	true)
-		set -- "$@" "$a2u__arg"
-		continue
-		;;
-	esac
-	case "$a2u__arg" in
-	--)
-		a2u__found_delim=true
-		set -- "$@" "$a2u__arg"
-		;;
-	-[a-zA-Z][a-zA-Z]*)
-		a2u__arg=${a2u__arg#-}
-		while [ -n "$a2u__arg" ]; do
-			a2u__cut=${a2u__arg#?}
-			a2u__char=${a2u__arg%"$a2u__cut"}
-			set -- "$@" "-$a2u__char"
-			a2u__arg=$a2u__cut
-		done
-		;;
-	*) set -- "$@" "$a2u__arg" ;;
-	esac
-done
-
-a2u__part_of_gst_set=false
-# parse args
-A2U__TERMINAL_ARGS_USEP=
-while [ "$#" -gt "0" ]; do
-	case "$1" in
-	-h | --help)
-		help
-		exit 0
-		;;
-	-s)
-		debug "arg '$1' '${2:-}'"
-		case "${2:-}" in
-		.slice | '')
-			error "Empty slice id '${2:-}'" "$(usage)"
-			exit 1
-			;;
-		*[!a-zA-Z0-9_.-]*)
-			error "Invalid slice id '$2'" "$(usage)"
-			exit 1
-			;;
-		*.slice)
-			A2U__UNIT_SLICE_ID=$2
-			shift 2
+	# deal with unit slice choices and default
+	A2U__UNIT_SLICE_CHOICES=${APP2UNIT_SLICES:-"a=app.slice b=background.slice s=session.slice"}
+	for a2u__choice in $A2U__UNIT_SLICE_CHOICES; do
+		debug "evaluating slice choice '$a2u__choice'"
+		a2u__slice_abbr=
+		a2u__slice_id=
+		case "$a2u__choice" in
+		*[!a-zA-Z0-9=._-]* | *=*=* | *[!a-z]*=* | *=[!a-zA-Z0-9._-]* | *[!.][!s][!l][!i][!c][!e])
+			error "Invalid slice choice '$a2u__choice', ignoring."
 			continue
 			;;
+		[a-z]*=[a-zA-Z0-9_.-]*.slice)
+			IFS='=' read -r a2u__slice_abbr a2u__slice_id <<- EOF
+				$a2u__choice
+			EOF
+			;;
 		*)
-			for a2u__choice in $A2U__UNIT_SLICE_CHOICES; do
-				IFS='=' read -r a2u__slice_abbr a2u__slice_id <<- EOF
-					$a2u__choice
-				EOF
-				case "$a2u__slice_abbr" in
-				"$2")
-					A2U__UNIT_SLICE_ID=$a2u__slice_id
-					shift 2
-					continue 2
-					;;
-				esac
-			done
-			error "'$2' does not point to a slice choice!" "Choices: $A2U__UNIT_SLICE_CHOICES" "$(usage)"
-			exit 1
+			error "Invalid slice choice '$a2u__choice', ignoring."
+			continue
 			;;
 		esac
-		error "Failed to parse '-s' argument" "$(usage)"
-		exit 1
-		;;
-	-t)
-		debug "arg '$1' '${2:-}'"
-		case "${2:-}" in
-		scope | service) A2U__UNIT_TYPE=$2 ;;
-		*)
-			error "Expected unit type scope|service for -t, got '${2:-}'!" "$(usage)"
-			exit 1
-			;;
-		esac
-		shift 2
-		;;
-	-a)
-		debug "arg '$1' '${2:-}'"
-		if [ -z "${2:-}" ]; then
-			error "Expected app name for -a!" "$(usage)"
-			exit 1
-		elif [ -n "$A2U__UNIT_ID" ]; then
-			error "Conflicting options: -a, -u!" "$(usage)"
-			exit 1
-		else
-			A2U__UNIT_APP_SUBSTRING=$2
+		if [ -z "$A2U__UNIT_SLICE_ID" ]; then
+			A2U__UNIT_SLICE_CHOICES=
+			A2U__UNIT_SLICE_ID="${a2u__slice_id}"
+			debug "reset default slice as '${a2u__slice_id}'"
 		fi
-		shift 2
-		;;
-	-u)
-		debug "arg '$1' '${2:-}'"
-		if [ -z "${2:-}" ]; then
-			error "Expected Unit ID for -u!" "$(usage)"
-			exit 1
-		elif [ -n "$A2U__UNIT_APP_SUBSTRING" ]; then
-			error "Conflicting options: -u, -a!" "$(usage)"
-			exit 1
-		else
-			A2U__UNIT_ID=$2
-		fi
-		shift 2
-		;;
-	-d)
-		debug "arg '$1' '${2:-}'"
-		if [ -z "${2:-}" ]; then
-			error "Expected unit description for -d!" "$(usage)"
-			exit 1
-		else
-			A2U__UNIT_DESCRIPTION="$2"
-		fi
-		shift 2
-		;;
-	-c)
-		case "$a2u__part_of_gst_set" in
-		true)
-			error "-c conflicts with -C" "$(usage)"
-			exit 1
-			;;
-		esac
-		debug "arg '$1'"
-		A2U__PART_OF_GST=false
-		a2u__part_of_gst_set=true
-		shift
-		;;
-	-C)
-		case "$a2u__part_of_gst_set" in
-		true)
-			error "-C conflicts with -c" "$(usage)"
-			exit 1
-			;;
-		esac
-		debug "arg '$1'"
+		debug "adding choice ${a2u__slice_abbr}=${a2u__slice_id}"
+		A2U__UNIT_SLICE_CHOICES=${A2U__UNIT_SLICE_CHOICES}${A2U__UNIT_SLICE_CHOICES:+ }${a2u__slice_abbr}=${a2u__slice_id}
+	done
+	if [ -z "$A2U__UNIT_SLICE_ID" ]; then
+		A2U__UNIT_SLICE_ID=app.slice
+		debug "falling back to default slice 'app.slice'"
+	fi
+
+	A2U__PART_OF_GST=true
+	if [ -z "${APP2UNIT_PART_OF_GST:-}" ]; then
 		A2U__PART_OF_GST=true
-		a2u__part_of_gst_set=true
-		shift
-		;;
-	-S)
-		debug "arg '$1' '${2:-}'"
-		case "${2:-}" in
-		out | err | both) A2U__SILENT=$2 ;;
-		*)
-			error "Expected silent mode out|err|both for -S, got '${2:-}'!" "$(usage)"
-			exit 1
-			;;
+	else
+		if check_bool "$APP2UNIT_PART_OF_GST"; then
+			A2U__PART_OF_GST=true
+		else
+			A2U__PART_OF_GST=false
+		fi
+	fi
+
+	A2U__TERMINAL=false
+	A2U__FUZZEL_COMPAT=false
+	A2U__OPENER_MODE=false
+
+	a2u__capture_terminal_args=false
+	case "$A2U__SELF_NAME" in
+	*-open | *-open-scope | *-open-service)
+		A2U__OPENER_MODE=true
+		case "$A2U__SELF_NAME" in
+		*-scope) A2U__UNIT_TYPE=scope ;;
+		*-service) A2U__UNIT_TYPE=service ;;
 		esac
-		shift 2
 		;;
-	-T)
+	*-term | *-terminal | *-term-scope | *-terminal-scope | *-term-service | *-terminal-service)
 		A2U__TERMINAL=true
 		a2u__capture_terminal_args=true
-		debug "arg '$1'"
-		check_terminal_handler
-		shift
-		;;
-	-O | --open)
-		A2U__OPENER_MODE=true
-		debug "arg '$1'"
-		shift
-		;;
-	-p)
-		debug "arg '$1' '${2:-}'"
-		case "${2:-}" in
-		'='*)
-			error "Expected unit property assignment for -p, got '${2:-}'!" "$(usage)"
-			;;
-		*'='*)
-			A2U__UNIT_PROPERTIES=${A2U__UNIT_PROPERTIES}${A2U__UNIT_PROPERTIES:+${A2U__USEP}}${2}
-			;;
-		*)
-			error "Expected unit property assignment for -p, got '${2:-}'!" "$(usage)"
-			exit 1
-			;;
+		case "$A2U__SELF_NAME" in
+		*-scope) A2U__UNIT_TYPE=scope ;;
+		*-service) A2U__UNIT_TYPE=service ;;
 		esac
-		shift 2
-		;;
-	--fuzzel-compat)
-		A2U__FUZZEL_COMPAT=true
-		debug "arg '$1'"
-		shift
-		;;
-	--test)
-		A2U__TEST_MODE=true
-		debug "arg '$1'"
-		shift
-		;;
-	--)
-		debug "arg '$1', breaking"
-		shift
-		break
-		;;
-	-*)
-		case "$a2u__capture_terminal_args" in
-		false)
-			error "Unknown option '$1'!" "$(usage)"
-			exit 1
-			;;
-		true)
-			debug "storing unknown opt '$1' for terminal"
-			A2U__TERMINAL_ARGS_USEP=${A2U__TERMINAL_ARGS_USEP}${A2U__TERMINAL_ARGS_USEP:+$A2U__USEP}${1}
-			shift
-			;;
-		esac
-		;;
-	*)
-		debug "arg '$1', breaking"
-		break
 		;;
 	esac
-done
 
-if [ "$#" -eq "0" ] && [ "$A2U__TERMINAL" = "false" ]; then
-	error "Arguments expected" "$(usage)"
-	exit 1
-fi
+	# will be set where needed
+	A2U__RANDOM_STRING=
 
-if [ "$A2U__FUZZEL_COMPAT" = "true" ]; then
-	if [ -z "${FUZZEL_DESKTOP_FILE_ID:-}" ]; then
-		debug "no FUZZEL_DESKTOP_FILE_ID, cancelling A2U__FUZZEL_COMPAT"
-		A2U__FUZZEL_COMPAT=false
-	fi
-	if [ "$A2U__OPENER_MODE" = "true" ]; then
-		debug "opener mode, cancelling A2U__FUZZEL_COMPAT"
-		A2U__FUZZEL_COMPAT=false
-	fi
-fi
+	A2U__LCODE=${LANGUAGE:-"$LANG"}
+	A2U__LCODE=${A2U__LCODE%_*}
+	A2U__LCODE=${A2U__LCODE:-A2U__NOLCODE}
 
-if [ "$A2U__OPENER_MODE" = "true" ]; then
-	if [ "$#" = "0" ]; then
-		error "File(s) or URL(s) expected for open mode."
+	# expand short args
+	a2u__first=true
+	a2u__found_delim=false
+	for a2u__arg in "$@"; do
+		case "$a2u__first" in
+		true)
+			set --
+			a2u__first=false
+			;;
+		esac
+		case "$a2u__found_delim" in
+		true)
+			set -- "$@" "$a2u__arg"
+			continue
+			;;
+		esac
+		case "$a2u__arg" in
+		--)
+			a2u__found_delim=true
+			set -- "$@" "$a2u__arg"
+			;;
+		-[a-zA-Z][a-zA-Z]*)
+			a2u__arg=${a2u__arg#-}
+			while [ -n "$a2u__arg" ]; do
+				a2u__cut=${a2u__arg#?}
+				a2u__char=${a2u__arg%"$a2u__cut"}
+				set -- "$@" "-$a2u__char"
+				a2u__arg=$a2u__cut
+			done
+			;;
+		*) set -- "$@" "$a2u__arg" ;;
+		esac
+	done
+
+	a2u__part_of_gst_set=false
+	# parse args
+	A2U__TERMINAL_ARGS_USEP=
+	while [ "$#" -gt "0" ]; do
+		case "$1" in
+		-h | --help)
+			help
+			exit 0
+			;;
+		-s)
+			debug "a2u__arg '$1' '${2:-}'"
+			case "${2:-}" in
+			.slice | '')
+				error "Empty slice id '${2:-}'" "$(usage)"
+				exit 1
+				;;
+			*[!a-zA-Z0-9_.-]*)
+				error "Invalid slice id '$2'" "$(usage)"
+				exit 1
+				;;
+			*.slice)
+				A2U__UNIT_SLICE_ID=$2
+				shift 2
+				continue
+				;;
+			*)
+				for a2u__choice in $A2U__UNIT_SLICE_CHOICES; do
+					IFS='=' read -r a2u__slice_abbr a2u__slice_id <<- EOF
+						$a2u__choice
+					EOF
+					case "$a2u__slice_abbr" in
+					"$2")
+						A2U__UNIT_SLICE_ID=$a2u__slice_id
+						shift 2
+						continue 2
+						;;
+					esac
+				done
+				error "'$2' does not point to a slice choice!" "Choices: $A2U__UNIT_SLICE_CHOICES" "$(usage)"
+				exit 1
+				;;
+			esac
+			error "Failed to parse '-s' argument" "$(usage)"
+			exit 1
+			;;
+		-t)
+			debug "arg '$1' '${2:-}'"
+			case "${2:-}" in
+			scope | service) A2U__UNIT_TYPE=$2 ;;
+			*)
+				error "Expected unit type scope|service for -t, got '${2:-}'!" "$(usage)"
+				exit 1
+				;;
+			esac
+			shift 2
+			;;
+		-a)
+			debug "arg '$1' '${2:-}'"
+			if [ -z "${2:-}" ]; then
+				error "Expected app name for -a!" "$(usage)"
+				exit 1
+			elif [ -n "$A2U__UNIT_ID" ]; then
+				error "Conflicting options: -a, -u!" "$(usage)"
+				exit 1
+			else
+				A2U__UNIT_APP_SUBSTRING=$2
+			fi
+			shift 2
+			;;
+		-u)
+			debug "arg '$1' '${2:-}'"
+			if [ -z "${2:-}" ]; then
+				error "Expected Unit ID for -u!" "$(usage)"
+				exit 1
+			elif [ -n "$A2U__UNIT_APP_SUBSTRING" ]; then
+				error "Conflicting options: -u, -a!" "$(usage)"
+				exit 1
+			else
+				A2U__UNIT_ID=$2
+			fi
+			shift 2
+			;;
+		-d)
+			debug "arg '$1' '${2:-}'"
+			if [ -z "${2:-}" ]; then
+				error "Expected unit description for -d!" "$(usage)"
+				exit 1
+			else
+				A2U__UNIT_DESCRIPTION="$2"
+			fi
+			shift 2
+			;;
+		-c)
+			case "$a2u__part_of_gst_set" in
+			true)
+				error "-c conflicts with -C" "$(usage)"
+				exit 1
+				;;
+			esac
+			debug "arg '$1'"
+			A2U__PART_OF_GST=false
+			a2u__part_of_gst_set=true
+			shift
+			;;
+		-C)
+			case "$a2u__part_of_gst_set" in
+			true)
+				error "-C conflicts with -c" "$(usage)"
+				exit 1
+				;;
+			esac
+			debug "arg '$1'"
+			A2U__PART_OF_GST=true
+			a2u__part_of_gst_set=true
+			shift
+			;;
+		-S)
+			debug "arg '$1' '${2:-}'"
+			case "${2:-}" in
+			out | err | both) A2U__SILENT=$2 ;;
+			*)
+				error "Expected silent mode out|err|both for -S, got '${2:-}'!" "$(usage)"
+				exit 1
+				;;
+			esac
+			shift 2
+			;;
+		-T)
+			A2U__TERMINAL=true
+			a2u__capture_terminal_args=true
+			debug "arg '$1'"
+			check_terminal_handler
+			shift
+			;;
+		-O | --open)
+			A2U__OPENER_MODE=true
+			debug "arg '$1'"
+			shift
+			;;
+		-p)
+			debug "arg '$1' '${2:-}'"
+			case "${2:-}" in
+			'='*)
+				error "Expected unit property assignment for -p, got '${2:-}'!" "$(usage)"
+				;;
+			*'='*)
+				A2U__UNIT_PROPERTIES=${A2U__UNIT_PROPERTIES}${A2U__UNIT_PROPERTIES:+${A2U__USEP}}${2}
+				;;
+			*)
+				error "Expected unit property assignment for -p, got '${2:-}'!" "$(usage)"
+				exit 1
+				;;
+			esac
+			shift 2
+			;;
+		--fuzzel-compat)
+			A2U__FUZZEL_COMPAT=true
+			debug "arg '$1'"
+			shift
+			;;
+		--test)
+			A2U__TEST_MODE=true
+			debug "arg '$1'"
+			shift
+			;;
+		--)
+			debug "arg '$1', breaking"
+			shift
+			break
+			;;
+		-*)
+			case "$a2u__capture_terminal_args" in
+			false)
+				error "Unknown option '$1'!" "$(usage)"
+				exit 1
+				;;
+			true)
+				debug "storing unknown opt '$1' for terminal"
+				A2U__TERMINAL_ARGS_USEP=${A2U__TERMINAL_ARGS_USEP}${A2U__TERMINAL_ARGS_USEP:+$A2U__USEP}${1}
+				shift
+				;;
+			esac
+			;;
+		*)
+			debug "arg '$1', breaking"
+			break
+			;;
+		esac
+	done
+
+	if [ "$#" -eq "0" ] && [ "$A2U__TERMINAL" = "false" ]; then
+		error "Arguments expected" "$(usage)"
 		exit 1
 	fi
-	A2U__MAIN_ARG=
-	# determine if file or URL, get associations for A2U__MAIN_ARG
-	for a2u__arg in "$@"; do
-		get_mime "$a2u__arg"
+
+	if [ "$A2U__FUZZEL_COMPAT" = "true" ]; then
+		if [ -z "${FUZZEL_DESKTOP_FILE_ID:-}" ]; then
+			debug "no FUZZEL_DESKTOP_FILE_ID, cancelling FUZZEL_COMPAT"
+			A2U__FUZZEL_COMPAT=false
+		fi
+		if [ "$A2U__OPENER_MODE" = "true" ]; then
+			debug "opener mode, cancelling FUZZEL_COMPAT"
+			A2U__FUZZEL_COMPAT=false
+		fi
+	fi
+
+	if [ "$A2U__OPENER_MODE" = "true" ]; then
+		if [ "$#" = "0" ]; then
+			error "File(s) or URL(s) expected for open mode."
+			exit 1
+		fi
+		A2U__MAIN_ARG=
+		# determine if file or URL, get associations for A2U__MAIN_ARG
+		for a2u__arg in "$@"; do
+			get_mime "$a2u__arg"
+			a2u__mime=$A2U__MIME
+			get_assoc "$a2u__mime"
+			a2u__assoc=$A2U__ASSOC
+			if [ -z "$A2U__MAIN_ARG" ]; then
+				debug "setting MAIN_ARG from association for '$a2u__arg': '$a2u__assoc'"
+				A2U__MAIN_ARG=$a2u__assoc
+			elif [ "$A2U__MAIN_ARG" = "$a2u__assoc" ]; then
+				debug "arg '$a2u__arg' has the same association"
+				true
+			else
+				error "Can not open multiple files/URLs with different associations"
+				exit 1
+			fi
+		done
+	elif [ "$A2U__FUZZEL_COMPAT" = "true" ]; then
+		debug "setting A2U__MAIN_ARG from FUZZEL_DESKTOP_FILE_ID: '$FUZZEL_DESKTOP_FILE_ID'" "passing arguments to exec array"
+		A2U__MAIN_ARG=$FUZZEL_DESKTOP_FILE_ID
+		# Fuzzel compat mode, awaiting for https://codeberg.org/dnkl/fuzzel/issues/292
+		# ignore command from entry, take only metadata, use arg array as is.
+		if ! command -v "$1" > /dev/null 2>&1; then
+			error "Executable not found: '$1'"
+			exit 127
+		fi
+		for a2u__item in "$@"; do
+			A2U__EXEC_RSEP_USEP=${A2U__EXEC_RSEP_USEP}${a2u__item}${A2U__USEP}
+		done
+		A2U__EXEC_RSEP_USEP=${A2U__EXEC_RSEP_USEP%"$A2U__USEP"}
+	elif [ "$#" -eq "0" ] && [ "$A2U__TERMINAL" = "true" ]; then
+		# special case for launching just terminal
+
+		# get entry path and cmdline from terminal handler
+		if a2u__path_and_cmd=$(
+			IFS=$A2U__USEP
+			# shellcheck disable=SC2086
+			set -- $A2U__TERMINAL_ARGS_USEP
+			IFS=$A2U__OIFS
+			# prevent old xdg-terminal-exec from running anything
+			unset DISPLAY WAYLAND_DISPLAY
+			"$A2U__TERMINAL_HANDLER" --print-path --print-cmd='\037' "$@"
+		) && case "$a2u__path_and_cmd" in '/'*".desktop$A2U__LF"* | '/'*'.desktop:'*"$A2U__LF"*) true ;; *) false ;; esac then
+			# entry path and action before newline
+			A2U__MAIN_ARG=${a2u__path_and_cmd%%"$A2U__LF"*}
+			# cmd after newline, fill exec array right away
+			A2U__EXEC_RSEP_USEP=${a2u__path_and_cmd#*"$A2U__LF"}
+			# shellcheck disable=SC2086
+			[ -z "$A2U__DEBUG" ] || debug "initial args:" "$(printf '  >%s<\n' "$@")" \
+				"replaced A2U__MAIN_ARG with '$A2U__MAIN_ARG'" \
+				"populated A2U__EXEC_RSEP_USEP with:" \
+				"$(
+					IFS=$A2U__USEP
+					printf '  > %s\n' $A2U__EXEC_RSEP_USEP
+				)"
+		else
+			# issue a warning to stderr
+			{
+				# shellcheck disable=SC2028
+				echo "Could not determine default terminal entry via '$A2U__TERMINAL_HANDLER --print-path --print-cmd=\037'!"
+				echo "Falling back to injecting '$A2U__TERMINAL_HANDLER' as the main argument."
+			} >&2
+			A2U__MAIN_ARG="$A2U__TERMINAL_HANDLER"
+		fi
+		A2U__TERMINAL=false
+	else
+		A2U__MAIN_ARG=$1
+		shift
+	fi
+	parse_main_arg "$A2U__MAIN_ARG"
+
+	if [ -n "$A2U__ENTRY_PATH" ]; then
+		# reverse-deduce and correct Entry ID against applications dirs
+		make_paths
+		normpath "$A2U__ENTRY_PATH"
+		A2U__ENTRY_PATH=${A2U__NORMALIZED_PATH}
+		IFS=':'
+		for a2u__dir in $A2U__APPLICATIONS_DIRS; do
+			if [ "$A2U__ENTRY_PATH" != "${A2U__ENTRY_PATH#"$a2u__dir"}" ]; then
+				A2U__ENTRY_ID_PRE=${A2U__ENTRY_PATH#"$a2u__dir"}
+				debug "Processing Entry ID '$A2U__ENTRY_ID_PRE' as deduced in '$a2u__dir'"
+				case "$A2U__ENTRY_ID_PRE" in
+				*/*)
+					replace "$A2U__ENTRY_ID_PRE" "/" "-"
+					A2U__ENTRY_ID_PRE=$A2U__REPLACED_STR
+					;;
+				esac
+				if validate_entry_id "$A2U__ENTRY_ID_PRE"; then
+					A2U__ENTRY_ID=$A2U__ENTRY_ID_PRE
+					debug "deduced Entry ID '$A2U__ENTRY_ID_PRE'"
+				else
+					error "Deduced Entry ID '$A2U__ENTRY_ID_PRE' is invalid!"
+				fi
+				break
+			fi
+		done
+		IFS=$A2U__OIFS
+	elif [ -n "$A2U__ENTRY_ID" ]; then
+		make_paths
+		find_entry "$A2U__ENTRY_ID"
+		A2U__ENTRY_PATH=$A2U__FOUND_ENTRY_PATH
+	fi
+
+	# read and parse entry, fill A2U__ENTRY_* vars and A2U__EXEC_RSEP_USEP
+	if [ -n "$A2U__ENTRY_PATH" ]; then
+		read_entry_path "$A2U__ENTRY_PATH" "$A2U__ENTRY_ACTION"
+	fi
+
+	# handle Link type URL
+	if [ -n "$A2U__ENTRY_URL" ]; then
+		debug "re-parsing for Link entry URL: $A2U__ENTRY_URL"
+		get_mime "$A2U__ENTRY_URL"
 		a2u__mime=$A2U__MIME
 		get_assoc "$a2u__mime"
 		a2u__assoc=$A2U__ASSOC
-		if [ -z "$A2U__MAIN_ARG" ]; then
-			debug "setting A2U__MAIN_ARG from association for '$a2u__arg': '$a2u__assoc'"
-			A2U__MAIN_ARG=$a2u__assoc
-		elif [ "$A2U__MAIN_ARG" = "$a2u__assoc" ]; then
-			debug "arg '$a2u__arg' has the same association"
-			true
-		else
-			error "Can not open multiple files/URLs with different associations"
-			exit 1
-		fi
-	done
-elif [ "$A2U__FUZZEL_COMPAT" = "true" ]; then
-	debug "setting A2U__MAIN_ARG from FUZZEL_DESKTOP_FILE_ID: '$FUZZEL_DESKTOP_FILE_ID'" "passing arguments to exec array"
-	A2U__MAIN_ARG=$FUZZEL_DESKTOP_FILE_ID
-	# Fuzzel compat mode, awaiting for https://codeberg.org/dnkl/fuzzel/issues/292
-	# ignore command from entry, take only metadata, use arg array as is.
-	if ! command -v "$1" > /dev/null 2>&1; then
-		error "Executable not found: '$1'"
-		exit 127
+		# replace initial vars and arg
+		A2U__ENTRY_ID=$a2u__assoc
+		set -- "$A2U__ENTRY_URL"
+		A2U__ENTRY_URL=
+		# re-parse new entry
+		find_entry "$A2U__ENTRY_ID"
+		A2U__ENTRY_PATH=$A2U__FOUND_ENTRY_PATH
+		read_entry_path "$A2U__ENTRY_PATH"
 	fi
-	for a2u__item in "$@"; do
-		A2U__EXEC_RSEP_USEP=${A2U__EXEC_RSEP_USEP}${a2u__item}${A2U__USEP}
-	done
-	A2U__EXEC_RSEP_USEP=${A2U__EXEC_RSEP_USEP%"$A2U__USEP"}
-elif [ "$#" -eq "0" ] && [ "$A2U__TERMINAL" = "true" ]; then
-	# special case for launching just terminal
 
-	# get entry path and cmdline from terminal handler
-	if a2u__path_and_cmd=$(
-		IFS=$A2U__USEP
-		# shellcheck disable=SC2086
-		set -- $A2U__TERMINAL_ARGS_USEP
-		IFS=$A2U__OIFS
-		# prevent old xdg-terminal-exec from running anything
-		unset DISPLAY WAYLAND_DISPLAY
-		"$A2U__TERMINAL_HANDLER" --print-path --print-cmd='\037' "$@"
-	) && case "$a2u__path_and_cmd" in '/'*".desktop$A2U__LF"* | '/'*'.desktop:'*"$A2U__LF"*) true ;; *) false ;; esac then
-		# entry path and action before newline
-		A2U__MAIN_ARG=${a2u__path_and_cmd%%"$A2U__LF"*}
-		# cmd after newline, fill exec array right away
-		A2U__EXEC_RSEP_USEP=${a2u__path_and_cmd#*"$A2U__LF"}
-		# shellcheck disable=SC2086
-		[ -z "$A2U__DEBUG" ] || debug "initial args:" "$(printf '  >%s<\n' "$@")" \
-			"replaced A2U__MAIN_ARG with '$A2U__MAIN_ARG'" \
-			"populated A2U__EXEC_RSEP_USEP with:" \
-			"$(
+	# generate Unit ID as A2U__UNIT_ID
+	gen_unit_id
+
+	# compose and print final command array(s)
+	if [ -n "$A2U__ENTRY_ID" ]; then
+
+		# do not bother with fields in fuzzel compat, since there are no open args
+		case "$A2U__FUZZEL_COMPAT" in
+		false) de_inject_fields "$@" ;;
+		esac
+
+		# deal with potential multiple iterations
+		case "$A2U__EXEC_RSEP_USEP" in
+		*"$A2U__RSEP"*)
+			IFS=$A2U__RSEP
+			a2u__first=true
+			for a2u__cmd in $A2U__EXEC_RSEP_USEP; do
 				IFS=$A2U__USEP
-				printf '  > %s\n' $A2U__EXEC_RSEP_USEP
-			)"
-	else
-		# issue a warning to stderr
-		{
-			# shellcheck disable=SC2028
-			echo "Could not determine default terminal entry via '$A2U__TERMINAL_HANDLER --print-path --print-cmd=\037'!"
-			echo "Falling back to injecting '$A2U__TERMINAL_HANDLER' as the main argument."
-		} >&2
-		A2U__MAIN_ARG="$A2U__TERMINAL_HANDLER"
-	fi
-	A2U__TERMINAL=false
-else
-	A2U__MAIN_ARG=$1
-	shift
-fi
-parse_main_arg "$A2U__MAIN_ARG"
+				# shellcheck disable=SC2086
+				set -- $a2u__cmd
+				IFS=$A2U__OIFS
+				case "$A2U__TERMINAL" in
+				true)
+					# inject terminal handler
+					debug "injected $A2U__TERMINAL_HANDLER"
+					IFS=$A2U__USEP
+					# shellcheck disable=SC2086
+					set -- "$A2U__TERMINAL_HANDLER" $A2U__TERMINAL_ARGS_USEP "$@"
+					IFS=$A2U__OIFS
+					;;
+				esac
+				[ -z "$A2U__DEBUG" ] || debug "entry iteration, first: $a2u__first" "$(printf '  >%s<\n' "$@")"
+				if [ "$a2u__first" = "false" ]; then
+					randomize_unit_id
+				fi
+				a2u__first=false
 
-if [ -n "$A2U__ENTRY_PATH" ]; then
-	# reverse-deduce and correct Entry ID against applications dirs
-	make_paths
-	normpath "$A2U__ENTRY_PATH"
-	A2U__ENTRY_PATH=${A2U__NORMALIZED_PATH}
-	IFS=':'
-	for a2u__dir in $A2U__APPLICATIONS_DIRS; do
-		if [ "$A2U__ENTRY_PATH" != "${A2U__ENTRY_PATH#"$a2u__dir"}" ]; then
-			A2U__ENTRY_ID_PRE=${A2U__ENTRY_PATH#"$a2u__dir"}
-			debug "Processing Entry ID '$A2U__ENTRY_ID_PRE' as deduced in '$a2u__dir'"
-			case "$A2U__ENTRY_ID_PRE" in
-			*/*)
-				replace "$A2U__ENTRY_ID_PRE" "/" "-"
-				A2U__ENTRY_ID_PRE=$A2U__REPLACED_STR
-				;;
-			esac
-			if validate_entry_id "$A2U__ENTRY_ID_PRE"; then
-				A2U__ENTRY_ID=$A2U__ENTRY_ID_PRE
-				debug "deduced Entry ID '$A2U__ENTRY_ID_PRE'"
-			else
-				error "Deduced Entry ID '$A2U__ENTRY_ID_PRE' is invalid!"
-			fi
-			break
-		fi
-	done
-	IFS=$A2U__OIFS
-elif [ -n "$A2U__ENTRY_ID" ]; then
-	make_paths
-	find_entry "$A2U__ENTRY_ID"
-	A2U__ENTRY_PATH=$A2U__FOUND_ENTRY_PATH
-fi
-
-# read and parse entry, fill ENTRY_* vars and A2U__EXEC_RSEP_USEP
-if [ -n "$A2U__ENTRY_PATH" ]; then
-	read_entry_path "$A2U__ENTRY_PATH" "$A2U__ENTRY_ACTION"
-fi
-
-# handle Link type URL
-if [ -n "$A2U__ENTRY_URL" ]; then
-	debug "re-parsing for Link entry URL: $A2U__ENTRY_URL"
-	get_mime "$A2U__ENTRY_URL"
-	a2u__mime=$A2U__MIME
-	get_assoc "$a2u__mime"
-	a2u__assoc=$A2U__ASSOC
-	# replace initial vars and arg
-	A2U__ENTRY_ID=$a2u__assoc
-	set -- "$A2U__ENTRY_URL"
-	A2U__ENTRY_URL=
-	# re-parse new entry
-	find_entry "$A2U__ENTRY_ID"
-	A2U__ENTRY_PATH=$A2U__FOUND_ENTRY_PATH
-	read_entry_path "$A2U__ENTRY_PATH"
-fi
-
-# generate Unit ID as A2U__UNIT_ID
-gen_unit_id
-
-# compose and execute arguments
-if [ -n "$A2U__ENTRY_ID" ]; then
-
-	# do not bother with fields in fuzzel compat, since there are no open args
-	case "$A2U__FUZZEL_COMPAT" in
-	false) de_inject_fields "$@" ;;
-	esac
-
-	# deal with potential multiple iterations
-	case "$A2U__EXEC_RSEP_USEP" in
-	*"$A2U__RSEP"*)
-		IFS=$A2U__RSEP
-		a2u__first=true
-		a2u__pids=
-		for a2u__cmd in $A2U__EXEC_RSEP_USEP; do
+				# get wrapped command array into A2U__FINAL_EXEC_RSEP_USEP
+				systemd_run_finalize_usep "$@"
+			done
+			;;
+		*)
 			IFS=$A2U__USEP
 			# shellcheck disable=SC2086
-			set -- $a2u__cmd
+			set -- $A2U__EXEC_RSEP_USEP
 			IFS=$A2U__OIFS
 			case "$A2U__TERMINAL" in
 			true)
@@ -1911,25 +1920,14 @@ if [ -n "$A2U__ENTRY_ID" ]; then
 				IFS=$A2U__OIFS
 				;;
 			esac
-			[ -z "$A2U__DEBUG" ] || debug "entry iteration" "$(printf '  >%s<\n' "$@")"
-			if [ "$a2u__first" = "false" ]; then
-				randomize_unit_id
-			fi
-			systemd_run "$@" &
-			a2u__pids=${a2u__pids}${a2u__pids:+ }$!
-			a2u__first=false
-		done
-		a2u__ec=0
-		# shellcheck disable=SC2086
-		for a2u__pid in $a2u__pids; do
-			wait $a2u__pid || a2u__ec=1
-		done
-		exit $a2u__ec
-		;;
-	*)
-		IFS=$A2U__USEP
-		# shellcheck disable=SC2086
-		set -- $A2U__EXEC_RSEP_USEP
+			[ -z "$A2U__DEBUG" ] || debug "entry single" "$(printf '  >%s<\n' "$@")"
+
+			# get wrapped command array into A2U__FINAL_EXEC_RSEP_USEP
+			systemd_run_finalize_usep "$@"
+			;;
+		esac
+	else
+		set -- "${A2U__EXEC_PATH:-$A2U__EXEC_NAME}" "$@"
 		IFS=$A2U__OIFS
 		case "$A2U__TERMINAL" in
 		true)
@@ -1941,23 +1939,129 @@ if [ -n "$A2U__ENTRY_ID" ]; then
 			IFS=$A2U__OIFS
 			;;
 		esac
-		[ -z "$A2U__DEBUG" ] || debug "entry single" "$(printf '  >%s<\n' "$@")"
-		systemd_run "$@"
-		;;
-	esac
-else
-	set -- "${A2U__EXEC_PATH:-$A2U__EXEC_NAME}" "$@"
-	IFS=$A2U__OIFS
-	case "$A2U__TERMINAL" in
-	true)
-		# inject terminal handler
-		debug "injected $A2U__TERMINAL_HANDLER"
+		[ -z "$A2U__DEBUG" ] || debug "command" "$(printf '  >%s<\n' "$@")"
+
+		# get wrapped command array into A2U__FINAL_EXEC_RSEP_USEP
+		systemd_run_finalize_usep "$@"
+	fi
+}
+
+[ -z "$A2U__DEBUG" ] || debug "initial args:" "$(printf '  >%s<\n' "$@")"
+
+# this var will contain complete finalized execution array(s)
+A2U__FINAL_EXEC_RSEP_USEP=
+
+# "isolate" most of other upper case vars by making shell revert them after gen_exec function
+A2U__APPLICATIONS_DIRS='' \
+	A2U__ASSOC='' \
+	A2U__CR='' \
+	A2U__ENTRY_='' \
+	A2U__ENTRY_ACTION='' \
+	A2U__ENTRY_GENERICNAME='' \
+	A2U__ENTRY_GENERICNAME_L='' \
+	A2U__ENTRY_ICON='' \
+	A2U__ENTRY_ID='' \
+	A2U__ENTRY_ID_PRE='' \
+	A2U__ENTRY_NAME='' \
+	A2U__ENTRY_NAME_ACTION='' \
+	A2U__ENTRY_NAME_L='' \
+	A2U__ENTRY_NAME_L_ACTION='' \
+	A2U__ENTRY_PATH='' \
+	A2U__ENTRY_TYPE='' \
+	A2U__ENTRY_URL='' \
+	A2U__ENTRY_WORKDIR='' \
+	A2U__EXEC_NAME='' \
+	A2U__EXEC_PATH='' \
+	A2U__EXEC_RSEP_USEP='' \
+	A2U__EXEC_USEP='' \
+	A2U__EXPANDED_STR='' \
+	A2U__FOUND_ENTRY_PATH='' \
+	A2U__FUZZEL_COMPAT='' \
+	A2U__LCODE='' \
+	A2U__MAIN_ARG='' \
+	A2U__MIME='' \
+	A2U__NEW_RANDOM_STRING='' \
+	A2U__NOLCODE='' \
+	A2U__NORMALIZED_PATH='' \
+	A2U__OPENER_MODE='' \
+	A2U__PART_OF_GST='' \
+	A2U__RANDOM_STRING='' \
+	A2U__REPLACED_STR='' \
+	A2U__SILENT='' \
+	A2U__TERMINAL='' \
+	A2U__TERMINAL_ARGS_USEP='' \
+	A2U__TEST_MODE='' \
+	A2U__UNIT_APP_SUBSTRING='' \
+	A2U__UNIT_DESCRIPTION='' \
+	A2U__UNIT_DESKTOP_SUBSTRING='' \
+	A2U__UNIT_ID='' \
+	A2U__UNIT_PROPERTIES='' \
+	A2U__UNIT_SLICE_CHOICES='' \
+	A2U__UNIT_SLICE_ID='' \
+	A2U__UNIT_TYPE='' \
+	A2U__URLENCODED_STRING='' \
+	gen_exec "$@"
+
+# extract and execute command(s)
+case "$A2U__FINAL_EXEC_RSEP_USEP" in
+*"$A2U__RSEP"*)
+	# record separator present, iterate over multiple background commands
+	IFS=$A2U__RSEP
+	a2u__pids=
+	for a2u__iter_cmd_flag in $A2U__FINAL_EXEC_RSEP_USEP; do
+		# cut flag
+		a2u__command=${a2u__iter_cmd_flag%"${A2U__USEP}"?}
+		a2u__flag=${a2u__iter_cmd_flag#"${a2u__command}${A2U__USEP}"}
 		IFS=$A2U__USEP
 		# shellcheck disable=SC2086
-		set -- "$A2U__TERMINAL_HANDLER" $A2U__TERMINAL_ARGS_USEP "$@"
+		set -- $a2u__command
 		IFS=$A2U__OIFS
+		[ -z "$A2U__DEBUG" ] || debug "exec iteration" "$(printf '  >%s<\n' "$@")" "flag: $a2u__flag"
+
+		# execute command in background according to flag (or just print in test mode)
+		case "$a2u__flag" in
+		T)
+			printf '%s\n' 'Command and arguments:'
+			printf '  >%s<\n' "$@"
+			continue
+			;;
+		O) "$@" > /dev/null & ;;
+		E) "$@" 2> /dev/null & ;;
+		B) "$@" > /dev/null 2>&1 & ;;
+		*) "$@" & ;;
+		esac
+		a2u__pids=${a2u__pids}${a2u__pids:+ }$!
+	done
+
+	# collect exit codes and exit with verdict
+	a2u__ec=0
+	# shellcheck disable=SC2086
+	for a2u__pid in $a2u__pids; do
+		wait $a2u__pid || a2u__ec=1
+	done
+	exit $a2u__ec
+	;;
+*)
+	# single command
+	# cut flag
+	a2u__command=${A2U__FINAL_EXEC_RSEP_USEP%"${A2U__USEP}"?}
+	a2u__flag=${A2U__FINAL_EXEC_RSEP_USEP#"${a2u__command}${A2U__USEP}"}
+	IFS=$A2U__USEP
+	# shellcheck disable=SC2086
+	set -- $a2u__command
+	IFS=$A2U__OIFS
+	[ -z "$A2U__DEBUG" ] || debug "exec single" "$(printf '  >%s<\n' "$@")"
+
+	# execute command according to flag (or just print in test mode)
+	case "$a2u__flag" in
+	T)
+		printf '%s\n' 'Command and arguments:'
+		printf '  >%s<\n' "$@"
 		;;
+	O) exec "$@" > /dev/null ;;
+	E) exec "$@" 2> /dev/null ;;
+	B) exec "$@" > /dev/null 2>&1 ;;
+	*) exec "$@" ;;
 	esac
-	[ -z "$A2U__DEBUG" ] || debug "command" "$(printf '  >%s<\n' "$@")"
-	systemd_run "$@"
-fi
+	;;
+esac
