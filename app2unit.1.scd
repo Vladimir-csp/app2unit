@@ -74,9 +74,11 @@ app-_${desktop}_-_${app_name}_-_${random}_.scope
 	Set/override unit description. By default description is generated from
 	Entry's "*Name=*" and "*GenericName=*" keys.
 
-*-p* _Property_=_value_
+*-p* {_Property_=_value_|*@*_file_}
 
-	Set additional unit property (option is repeatable).
+	Set additional unit property. Or load them from a *@*_file_ (one
+	assignment per line, lines are trimmed, empty lines and those starting
+	with "#" are ignored). Option is repeatable.
 
 *-T*
 

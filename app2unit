@@ -43,7 +43,7 @@ usage() {
 		)
 		    [{-a app_name | -u unit_id}] \\
 		    [-d description] \\
-		    [-p Property=value] \\
+		    [-p {Property=value | @property_file}] \\
 		    [-S {out|err|both}] \\
 		    [{-c|-C}] \\
 		    [-T] \\$(
@@ -109,8 +109,8 @@ help() {
 		    Set/override unit description. By default description is generated from
 		    Entry's "Name=" and "GenericName=" keys.
 
-		  -p Property=value
-		    Set additional properties for unit.
+		  -p Property=value, -p @property_file
+		    Set additional properties for unit or load them from a file.
 
 	EOF
 	case "$A2U__SELF_NAME" in
@@ -1669,6 +1669,34 @@ gen_exec() {
 		-p)
 			debug "arg '$1' '${2:-}'"
 			case "${2:-}" in
+			@)
+				error "Expected file path after @ for -p" "$(usage)"
+				exit 1
+				;;
+			@*)
+				a2u__prop_file=${2#@}
+				if [ -f "$a2u__prop_file" ]; then
+					a2u__counter=0
+					while read -r a2u__prop_line; do
+						a2u__counter=$((a2u__counter + 1))
+						case "$a2u__prop_line" in
+						'' | '#' | '#'*) continue ;;
+						'='*)
+							error "File: ${a2u__prop_file}:${a2u__counter}" "Expected unit property assignment for -p, got '${a2u__prop_line}'!" "$(usage)"
+							exit 1
+							;;
+						*'='*) A2U__UNIT_PROPERTIES=${A2U__UNIT_PROPERTIES}${A2U__UNIT_PROPERTIES:+${A2U__USEP}}${a2u__prop_line} ;;
+						*)
+							error "File: ${a2u__prop_file}:${a2u__counter}" "Expected unit property assignment for -p, got '${a2u__prop_line}'!" "$(usage)"
+							exit 1
+							;;
+						esac
+					done < "$a2u__prop_file"
+				else
+					error "Property file '$a2u__prop_file' not found!"
+					exit 127
+				fi
+				;;
 			'='*)
 				error "Expected unit property assignment for -p, got '${2:-}'!" "$(usage)"
 				;;
