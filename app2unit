@@ -1203,6 +1203,13 @@ systemd_run_finalize_usep() {
 	scope) set -- --scope "$@" ;;
 	service)
 		set -- --property=Type=exec --property=ExitType=cgroup "$@"
+		# pass session-specific variables from compositor
+		for a2u__svar in XDG_SEAT XDG_SEAT_PATH XDG_SESSION_ID XDG_SESSION_PATH XDG_VTNR; do
+			eval "a2u__sval=\${${a2u__svar}:-}"
+			if [ -n "$a2u__sval" ]; then
+				set -- "--setenv=${a2u__svar}=${a2u__sval}" "$@"
+			fi
+		done
 		# silence service
 		case "$A2U__SILENT" in
 		# silence out
