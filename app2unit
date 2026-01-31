@@ -821,7 +821,7 @@ parse_entry_key() {
 		false_true_*)
 			debug "captured '$a2u__key' '$a2u__value'"
 			de_expand_str "$a2u__value"
-			A2U__ENTRY_NAME_L_ACTION=$A2U__EXPANDED_STR
+			A2U__ENTRY_ACTION_NAME_L=$A2U__EXPANDED_STR
 			;;
 		*) debug "discarded '$a2u__key' '$a2u__value'" ;;
 		esac
@@ -837,7 +837,7 @@ parse_entry_key() {
 		false_true_*)
 			debug "captured '$a2u__key' '$a2u__value'"
 			de_expand_str "$a2u__value"
-			A2U__ENTRY_NAME_ACTION=$A2U__EXPANDED_STR
+			A2U__ENTRY_ACTION_NAME=$A2U__EXPANDED_STR
 			;;
 		*) debug "discarded '$a2u__key' '$a2u__value'" ;;
 		esac
@@ -975,7 +975,7 @@ read_entry_path() {
 			return 1
 			;;
 		esac
-		if [ "$a2u__action_exec" != "true" ] || [ -z "${A2U__ENTRY_NAME_L_ACTION:-${A2U__ENTRY_NAME_ACTION:-}}" ]; then
+		if [ "$a2u__action_exec" != "true" ] || [ -z "${A2U__ENTRY_ACTION_NAME_L:-${A2U__ENTRY_ACTION_NAME:-}}" ]; then
 			error "${A2U__ENTRY_ID}: Action '$a2u__entry_action' is incomplete"
 			return 1
 		fi
@@ -1718,8 +1718,13 @@ gen_exec() {
 			shift 2
 			;;
 		--fuzzel-compat)
-			A2U__FUZZEL_COMPAT=true
 			debug "arg '$1'"
+			if [ -z "${DESKTOP_ENTRY_NAME:-}" ]; then
+				debug "enabled fuzzel compat"
+				A2U__FUZZEL_COMPAT=true
+			else
+				debug "skipping old fuzzel compat since DESKTOP_ENTRY_NAME is defined"
+			fi
 			shift
 			;;
 		--test)
@@ -1899,6 +1904,23 @@ gen_exec() {
 		read_entry_path "$A2U__ENTRY_PATH"
 	fi
 
+	# if no Entry ID came from the main argument,
+	# and launcher set entry data in env vars,
+	# fill them now
+	if [ -z "$A2U__ENTRY_ID" ]; then
+		[ -z "${DESKTOP_ENTRY_ID-}" ] || A2U__ENTRY_ID=$DESKTOP_ENTRY_ID
+		[ -z "${DESKTOP_ENTRY_PATH-}" ] || A2U__ENTRY_PATH=$DESKTOP_ENTRY_PATH
+		[ -z "${DESKTOP_ENTRY_NAME-}" ] || A2U__ENTRY_NAME=$DESKTOP_ENTRY_NAME
+		[ -z "${DESKTOP_ENTRY_NAME_L-}" ] || A2U__ENTRY_NAME_L=$DESKTOP_ENTRY_NAME_L
+		[ -z "${DESKTOP_ENTRY_GENERICNAME-}" ] || A2U__ENTRY_GENERICNAME=$DESKTOP_ENTRY_GENERICNAME
+		[ -z "${DESKTOP_ENTRY_GENERICNAME_L-}" ] || A2U__ENTRY_GENERICNAME_L=$DESKTOP_ENTRY_GENERICNAME_L
+		[ -z "${DESKTOP_ENTRY_ICON-}" ] || A2U__ENTRY_ICON=$DESKTOP_ENTRY_ICON
+		[ -z "${DESKTOP_ENTRY_ACTION-}" ] || A2U__ENTRY_ACTION=$DESKTOP_ENTRY_ACTION
+		[ -z "${DESKTOP_ENTRY_ACTION_NAME-}" ] || A2U__ENTRY_ACTION_NAME=$DESKTOP_ENTRY_ACTION_NAME
+		[ -z "${DESKTOP_ENTRY_ACTION_NAME_L-}" ] || A2U__ENTRY_ACTION_NAME_L=$DESKTOP_ENTRY_ACTION_NAME_L
+		#[ -z "${DESKTOP_ENTRY_ACTION_ICON-}" ] || A2U__ENTRY_ACTION_ICON=$DESKTOP_ENTRY_ACTION_ICON
+	fi
+
 	# generate Unit ID as A2U__UNIT_ID
 	gen_unit_id
 
@@ -1991,16 +2013,16 @@ A2U__APPLICATIONS_DIRS='' \
 	A2U__ASSOC='' \
 	A2U__CR='' \
 	A2U__ENTRY_='' \
-	A2U__ENTRY_ACTION='' \
 	A2U__ENTRY_GENERICNAME='' \
 	A2U__ENTRY_GENERICNAME_L='' \
 	A2U__ENTRY_ICON='' \
 	A2U__ENTRY_ID='' \
 	A2U__ENTRY_ID_PRE='' \
 	A2U__ENTRY_NAME='' \
-	A2U__ENTRY_NAME_ACTION='' \
 	A2U__ENTRY_NAME_L='' \
-	A2U__ENTRY_NAME_L_ACTION='' \
+	A2U__ENTRY_ACTION='' \
+	A2U__ENTRY_ACTION_NAME='' \
+	A2U__ENTRY_ACTION_NAME_L='' \
 	A2U__ENTRY_PATH='' \
 	A2U__ENTRY_TYPE='' \
 	A2U__ENTRY_URL='' \
@@ -2036,6 +2058,21 @@ A2U__APPLICATIONS_DIRS='' \
 	A2U__UNIT_TYPE='' \
 	A2U__URLENCODED_STRING='' \
 	gen_exec "$@"
+
+# unset all launcher meta vars
+unset DESKTOP_ENTRY_ID \
+	DESKTOP_ENTRY_PATH \
+	DESKTOP_ENTRY_NAME \
+	DESKTOP_ENTRY_NAME_L \
+	DESKTOP_ENTRY_COMMENT \
+	DESKTOP_ENTRY_COMMENT_L \
+	DESKTOP_ENTRY_GENERICNAME \
+	DESKTOP_ENTRY_GENERICNAME_L \
+	DESKTOP_ENTRY_ICON \
+	DESKTOP_ENTRY_ACTION \
+	DESKTOP_ENTRY_ACTION_NAME \
+	DESKTOP_ENTRY_ACTION_NAME_L \
+	DESKTOP_ENTRY_ACTION_ICON
 
 # extract and execute command(s)
 case "$A2U__FINAL_EXEC_RSEP_USEP" in
