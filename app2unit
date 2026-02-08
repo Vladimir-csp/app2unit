@@ -105,6 +105,14 @@ help() {
 		      app-\${desktop}-\${app_name}@\${random}.service
 		      app-\${desktop}-\${app_name}-\${random}.scope
 
+		  -x
+		    Do not insert "-\${desktop}" substring into generated unit name.
+		    Also can be preset with APP2UNIT_INSERT_XSD=false.
+
+		  -X
+		    Insert "-\${desktop}" substring into generated unit name (default).
+		    Also can be preset with APP2UNIT_INSERT_XSD=true.
+
 		  -d description
 		    Set/override unit description. By default description is generated from
 		    Entry's "Name=" and "GenericName=" keys.
@@ -1082,13 +1090,20 @@ gen_unit_id() {
 		elif [ -z "$A2U__UNIT_APP_SUBSTRING" ]; then
 			A2U__UNIT_APP_SUBSTRING=${A2U__EXEC_NAME}
 		fi
-		if [ -n "${XDG_SESSION_DESKTOP:-}" ]; then
-			A2U__UNIT_DESKTOP_SUBSTRING=${XDG_SESSION_DESKTOP}
-		elif [ -n "${XDG_CURRENT_DESKTOP:-}" ]; then
-			A2U__UNIT_DESKTOP_SUBSTRING=${XDG_CURRENT_DESKTOP%%:*}
-		else
-			A2U__UNIT_DESKTOP_SUBSTRING=NoDesktop
-		fi
+		case "${A2U__INSERT_XSD}" in
+		true)
+			if [ -n "${XDG_SESSION_DESKTOP:-}" ]; then
+				A2U__UNIT_DESKTOP_SUBSTRING=${XDG_SESSION_DESKTOP}
+			elif [ -n "${XDG_CURRENT_DESKTOP:-}" ]; then
+				A2U__UNIT_DESKTOP_SUBSTRING=${XDG_CURRENT_DESKTOP%%:*}
+			else
+				A2U__UNIT_DESKTOP_SUBSTRING=NoDesktop
+			fi
+			;;
+		false)
+			A2U__UNIT_DESKTOP_SUBSTRING=
+			;;
+		esac
 		# escape substrings if needed
 		case "${A2U__UNIT_DESKTOP_SUBSTRING}${A2U__UNIT_APP_SUBSTRING}" in
 		*[!a-zA-Z:_.]*)
@@ -1105,10 +1120,10 @@ gen_unit_id() {
 		A2U__RANDOM_STRING=$(random_string)
 		case "$A2U__UNIT_TYPE" in
 		service)
-			A2U__UNIT_ID="app-${A2U__UNIT_DESKTOP_SUBSTRING}-${A2U__UNIT_APP_SUBSTRING}@${A2U__RANDOM_STRING}.service"
+			A2U__UNIT_ID="app${A2U__UNIT_DESKTOP_SUBSTRING:+-}${A2U__UNIT_DESKTOP_SUBSTRING}-${A2U__UNIT_APP_SUBSTRING}@${A2U__RANDOM_STRING}.service"
 			;;
 		scope)
-			A2U__UNIT_ID="app-${A2U__UNIT_DESKTOP_SUBSTRING}-${A2U__UNIT_APP_SUBSTRING}-${A2U__RANDOM_STRING}.scope"
+			A2U__UNIT_ID="app${A2U__UNIT_DESKTOP_SUBSTRING:+-}${A2U__UNIT_DESKTOP_SUBSTRING}-${A2U__UNIT_APP_SUBSTRING}-${A2U__RANDOM_STRING}.scope"
 			;;
 		*)
 			error "Unsupported unit type '$A2U__UNIT_TYPE'!"
@@ -1464,6 +1479,17 @@ gen_exec() {
 		debug "falling back to default slice 'app.slice'"
 	fi
 
+	A2U__INSERT_XSD=true
+	if [ -z "${APP2UNIT_INSERT_XSD:-}" ]; then
+		A2U__INSERT_XSD=true
+	else
+		if check_bool "$APP2UNIT_INSERT_XSD"; then
+			A2U__INSERT_XSD=true
+		else
+			A2U__INSERT_XSD=false
+		fi
+	fi
+
 	A2U__PART_OF_GST=true
 	if [ -z "${APP2UNIT_PART_OF_GST:-}" ]; then
 		A2U__PART_OF_GST=true
@@ -1540,6 +1566,7 @@ gen_exec() {
 	done
 
 	a2u__part_of_gst_set=false
+	a2u__insert_xsd_set=false
 	# parse args
 	A2U__TERMINAL_ARGS_USEP=
 	while [ "$#" -gt "0" ]; do
@@ -1630,6 +1657,30 @@ gen_exec() {
 				A2U__UNIT_DESCRIPTION="$2"
 			fi
 			shift 2
+			;;
+		-x)
+			case "$a2u__insert_xsd_set" in
+			true)
+				error "-x conflicts with -X" "$(usage)"
+				exit 1
+				;;
+			esac
+			debug "arg '$1'"
+			A2U__INSERT_XSD=false
+			a2u__insert_xsd_set=true
+			shift
+			;;
+		-X)
+			case "$a2u__insert_xsd_set" in
+			true)
+				error "-X conflicts with -x" "$(usage)"
+				exit 1
+				;;
+			esac
+			debug "arg '$1'"
+			A2U__INSERT_XSD=true
+			a2u__insert_xsd_set=true
+			shift
 			;;
 		-c)
 			case "$a2u__part_of_gst_set" in
@@ -2050,6 +2101,7 @@ A2U__APPLICATIONS_DIRS='' \
 	A2U__NORMALIZED_PATH='' \
 	A2U__OPENER_MODE='' \
 	A2U__PART_OF_GST='' \
+	A2U__INSERT_XSD='' \
 	A2U__RANDOM_STRING='' \
 	A2U__REPLACED_STR='' \
 	A2U__SILENT='' \

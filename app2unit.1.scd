@@ -69,6 +69,16 @@ Or set slice explicitly. Default and short
 app-_${desktop}_-_${app_name}_-_${random}_.scope
 	Conflicts with *-a*.
 
+*-x*
+
+	Do not insert _${desktop}_ substring into generated unit name.
+	Also can be preset with env var "*APP2UNIT_INSERT_XSD=false*".
+
+*-X*
+
+	Insert _${desktop}_ substring into generated unit name (default
+	behavior).
+
 *-d* _description_
 
 	Set/override unit description. By default description is generated from
