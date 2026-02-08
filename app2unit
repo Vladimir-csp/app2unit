@@ -1183,6 +1183,11 @@ systemd_run_finalize_usep() {
 	done
 	IFS=${A2U__OIFS}
 
+	if [ -n "$A2U__ENTRY_PATH" ]; then
+		# prepend SourcePath property
+		set -- "--property=SourcePath=${A2U__ENTRY_PATH}" "$@"
+	fi
+
 	if [ "$A2U__PART_OF_GST" = "true" ]; then
 		# prepend graphical session dependency/ordering args
 		set -- \
