@@ -1904,28 +1904,12 @@ gen_exec() {
 		read_entry_path "$A2U__ENTRY_PATH"
 	fi
 
-	# if no Entry ID came from the main argument,
-	# and launcher set entry data in env vars,
-	# fill them now
-	if [ -z "$A2U__ENTRY_ID" ]; then
-		[ -z "${DESKTOP_ENTRY_ID-}" ] || A2U__ENTRY_ID=$DESKTOP_ENTRY_ID
-		[ -z "${DESKTOP_ENTRY_PATH-}" ] || A2U__ENTRY_PATH=$DESKTOP_ENTRY_PATH
-		[ -z "${DESKTOP_ENTRY_NAME-}" ] || A2U__ENTRY_NAME=$DESKTOP_ENTRY_NAME
-		[ -z "${DESKTOP_ENTRY_NAME_L-}" ] || A2U__ENTRY_NAME_L=$DESKTOP_ENTRY_NAME_L
-		[ -z "${DESKTOP_ENTRY_GENERICNAME-}" ] || A2U__ENTRY_GENERICNAME=$DESKTOP_ENTRY_GENERICNAME
-		[ -z "${DESKTOP_ENTRY_GENERICNAME_L-}" ] || A2U__ENTRY_GENERICNAME_L=$DESKTOP_ENTRY_GENERICNAME_L
-		[ -z "${DESKTOP_ENTRY_ICON-}" ] || A2U__ENTRY_ICON=$DESKTOP_ENTRY_ICON
-		[ -z "${DESKTOP_ENTRY_ACTION-}" ] || A2U__ENTRY_ACTION=$DESKTOP_ENTRY_ACTION
-		[ -z "${DESKTOP_ENTRY_ACTION_NAME-}" ] || A2U__ENTRY_ACTION_NAME=$DESKTOP_ENTRY_ACTION_NAME
-		[ -z "${DESKTOP_ENTRY_ACTION_NAME_L-}" ] || A2U__ENTRY_ACTION_NAME_L=$DESKTOP_ENTRY_ACTION_NAME_L
-		#[ -z "${DESKTOP_ENTRY_ACTION_ICON-}" ] || A2U__ENTRY_ACTION_ICON=$DESKTOP_ENTRY_ACTION_ICON
-	fi
-
-	# generate Unit ID as A2U__UNIT_ID
-	gen_unit_id
-
-	# compose and print final command array(s)
+	## compose and print final command array(s)
+	# entry mode
 	if [ -n "$A2U__ENTRY_ID" ]; then
+
+		# generate Unit ID as A2U__UNIT_ID
+		gen_unit_id
 
 		# do not bother with fields in fuzzel compat, since there are no open args
 		case "$A2U__FUZZEL_COMPAT" in
@@ -1983,7 +1967,26 @@ gen_exec() {
 			systemd_run_finalize_usep "$@"
 			;;
 		esac
+	# plain exec mode
 	else
+		# if no Entry ID came from the main argument,
+		# and launcher set entry data in env vars,
+		# fill them now
+		[ -z "${DESKTOP_ENTRY_ID-}" ] || A2U__ENTRY_ID=$DESKTOP_ENTRY_ID
+		[ -z "${DESKTOP_ENTRY_PATH-}" ] || A2U__ENTRY_PATH=$DESKTOP_ENTRY_PATH
+		[ -z "${DESKTOP_ENTRY_NAME-}" ] || A2U__ENTRY_NAME=$DESKTOP_ENTRY_NAME
+		[ -z "${DESKTOP_ENTRY_NAME_L-}" ] || A2U__ENTRY_NAME_L=$DESKTOP_ENTRY_NAME_L
+		[ -z "${DESKTOP_ENTRY_GENERICNAME-}" ] || A2U__ENTRY_GENERICNAME=$DESKTOP_ENTRY_GENERICNAME
+		[ -z "${DESKTOP_ENTRY_GENERICNAME_L-}" ] || A2U__ENTRY_GENERICNAME_L=$DESKTOP_ENTRY_GENERICNAME_L
+		[ -z "${DESKTOP_ENTRY_ICON-}" ] || A2U__ENTRY_ICON=$DESKTOP_ENTRY_ICON
+		[ -z "${DESKTOP_ENTRY_ACTION-}" ] || A2U__ENTRY_ACTION=$DESKTOP_ENTRY_ACTION
+		[ -z "${DESKTOP_ENTRY_ACTION_NAME-}" ] || A2U__ENTRY_ACTION_NAME=$DESKTOP_ENTRY_ACTION_NAME
+		[ -z "${DESKTOP_ENTRY_ACTION_NAME_L-}" ] || A2U__ENTRY_ACTION_NAME_L=$DESKTOP_ENTRY_ACTION_NAME_L
+		#[ -z "${DESKTOP_ENTRY_ACTION_ICON-}" ] || A2U__ENTRY_ACTION_ICON=$DESKTOP_ENTRY_ACTION_ICON
+
+		# generate Unit ID as A2U__UNIT_ID
+		gen_unit_id
+
 		set -- "${A2U__EXEC_PATH:-$A2U__EXEC_NAME}" "$@"
 		IFS=$A2U__OIFS
 		case "$A2U__TERMINAL" in
