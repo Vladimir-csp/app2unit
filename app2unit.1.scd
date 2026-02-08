@@ -113,12 +113,12 @@ app-_${desktop}_-_${app_name}_-_${random}_.scope
 
 *--fuzzel-compat*
 
-	For using in *fuzzel* like this:
+	For using in *fuzzel* <1.14.0 like this:
 
 		fuzzel --launch-prefix='app2unit --fuzzel-compat --'
 
-	Will need updates after this is solved:
-	https://codeberg.org/dnkl/fuzzel/issues/292
+	Since 1.14.0 it is no longer needed as *DESKTOP_ENTRY_*\* vars
+	are handled automatically.
 
 *--test*
 
