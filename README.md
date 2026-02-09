@@ -4,12 +4,13 @@ Launch Desktop Entries (or arbitrary commands) as Systemd user units, and do it
 fast.
 
 Based heavily on mechanisms and optimizations introduced into
-[xdg-terminal-exec](https://github.com/Vladimir-csp/xdg-terminal-exec) by @fluvf, it performs function
-similar to (and behaves similarly to) [uwsm](https://github.com/Vladimir-csp/uwsm)'s `app` subcommand, but
-without the costly startup of Python interpreter or the necessity of having a daemon
-running for speeding things up. If run on a fast shell (such as `dash`) with
-system stored on an SSD, overhead can be as short as ~0.03s, with `systemd-run`
-giving additional ~0.03s.
+[xdg-terminal-exec](https://github.com/Vladimir-csp/xdg-terminal-exec) by
+@fluvf, it performs function similar to (and behaves similarly to)
+[uwsm](https://github.com/Vladimir-csp/uwsm)'s `app` subcommand, but without the
+costly startup of Python interpreter or the necessity of having a daemon running
+for speeding things up. If run on a fast shell (such as `dash`) with system
+stored on an SSD, overhead can be as short as ~0.03s, with `systemd-run` giving
+additional ~0.03s.
 
 ## Syntax
 
@@ -43,27 +44,34 @@ To change default unit type:
 
     APP2UNIT_TYPE=service
 
-## Fuzzel integration
+## Fuzzel (and potentially other launchers) integration
 
 Can be integrated into [Fuzzel](https://codeberg.org/dnkl/fuzzel/) launcher via
-its launch prefix feature: `--launch-prefix='app2unit --fuzzel-compat --'`.
-app2unit will use command line provided by Fuzzel as is, but currently it will
-have to re-find and re-parse desktop entry to extract metadata since Fuzzel [can
-only tell it Desktop Entry ID and nothing
-more](https://codeberg.org/dnkl/fuzzel/issues/292).
+its launch prefix feature: `--launch-prefix='app2unit --'`. Fuzzel since version
+1.14.0 defines a set of `DESKTOP_ENTRY_*` vars with entry's metadata, `app2unit`
+handles them transparently since version version 1.3.0.
+
+For older versions of Fuzzel `--fuzzel-compat` argument can be used which will
+use Fuzzel-specific `FUZZEL_DESKTOP_FILE_ID` var to find entry and get metadata 
+from it.
+
+`DESKTOP_ENTRY_*` vars were envisioned to be launcher-agnostic, so if other
+launchers add support for them, app2unit will also be able to work with them
+without modification. See relevant [PR](https://codeberg.org/dnkl/fuzzel/pulls/666)
+for more info
 
 ## Terminal support
 
-Requires `xdg-terminal-exec`. When the terminal is requested explicitly (with `-T`
-argument or `*-term` executable link), any unknown option starting with `-`
-after `-T` and before `--` (or a command) are passed to `xdg-terminal-exec` to
-be handled according to the
-[Default Terminal Spec proposal](https://gitlab.freedesktop.org/terminal-wg/specifications/-/merge_requests/3).
+Requires [`xdg-terminal-exec`](https://github.com/Vladimir-csp/xdg-terminal-exec/).
+When the terminal is requested explicitly (with `-T` argument or `*-term`
+executable link), any unknown option starting with `-` after `-T` and before
+`--` (or a command) are passed to `xdg-terminal-exec` to be handled according to
+the [Default Terminal Spec proposal](https://gitlab.freedesktop.org/terminal-wg/specifications/-/merge_requests/3).
 
 ### Launching default terminal
 
-`app2unit -T` or `app2unit-term` (without command) can be used to open the default
-terminal as a unit, with unit metadata filled from its desktop entry.
+`app2unit -T` or `app2unit-term` (without command) can be used to open the
+default terminal as a unit, with unit metadata filled from its desktop entry.
 
 Proper metadata support requires scripting options in `xdg-terminal-exec`
 available since version 0.13.0.
