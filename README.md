@@ -58,7 +58,7 @@ from it.
 `DESKTOP_ENTRY_*` vars were envisioned to be launcher-agnostic, so if other
 launchers add support for them, app2unit will also be able to work with them
 without modification. See relevant [PR](https://codeberg.org/dnkl/fuzzel/pulls/666)
-for more info
+for more info.
 
 ## Terminal support
 

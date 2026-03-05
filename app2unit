@@ -1043,41 +1043,146 @@ validate_action_id() {
 	esac
 }
 
+is_url() {
+	# checks if string starts with a scheme
+	case "${1%%':'*}" in
+	[!a-zA-Z]* | *[!a-zA-Z0-9+.-]*) return 1 ;;
+	*[a-zA-Z0-9+.-]*) return 0 ;;
+	*) return 1 ;;
+	esac
+}
+
+is_file_url() {
+	case "$1" in
+	'file://'*) return 0 ;;
+	*) return 1 ;;
+	esac
+}
+
 urlencode() {
-	# pretty dumb urlencode
+	# pretty dumb urlencode,
+	# produces file:// URL or returns existing URL as is
 	# writes to A2U__URLENCODED_STRING var
+	debug "urlencode input: $1"
 	a2u__ue_string=$1
-	case "$a2u__ue_string" in
-	# assuming already url
-	*[a-zA-Z0-9_-]://*)
+	# already an url
+	if is_url "$a2u__ue_string"; then
+		debug "urlencode: return as is"
 		A2U__URLENCODED_STRING=$a2u__ue_string
 		return
-		;;
+	fi
+	case "$a2u__ue_string" in
 	# assuming absolute path
 	/*) true ;;
 	# assuming relative path
-	*) a2u__ue_string=${PWD}/$a2u__ue_string ;;
+	*)
+		debug "urlencode: prepended $PWD"
+		a2u__ue_string=${PWD}/$a2u__ue_string
+		;;
 	esac
-
-	A2U__URLENCODED_STRING='file://'
 
 	case "$a2u__ue_string" in
 	# if contains extra chars, encode
 	*[!._~0-9A-Za-z/-]*)
-		while [ -n "$a2u__ue_string" ]; do
-			a2u__ue_right=${a2u__ue_string#?}
-			a2u__ue_char=${a2u__ue_string%"$a2u__ue_right"}
-			debug "urlencode string $a2u__ue_string" "urlencode right $a2u__ue_right" "urlencode char $a2u__ue_char"
-			case $a2u__ue_char in
-			[._~0-9A-Za-z/-]) A2U__URLENCODED_STRING=${A2U__URLENCODED_STRING}$a2u__ue_char ;;
-			*) A2U__URLENCODED_STRING=${A2U__URLENCODED_STRING}$(printf '%%%02x' "'$a2u__ue_char") ;;
-			esac
-			a2u__ue_string=$a2u__ue_right
-		done
+		debug "urlencode: encoding"
+		# shellcheck disable=SC2030
+		A2U__URLENCODED_STRING="file://$(
+			while [ -n "$a2u__ue_string" ]; do
+				a2u__ue_right=${a2u__ue_string#?}
+				a2u__ue_char=${a2u__ue_string%"$a2u__ue_right"}
+				case $a2u__ue_char in
+				[._~0-9A-Za-z/-])
+					debug "urlencode string $a2u__ue_string" "urlencode right $a2u__ue_right" "urlencode char '$a2u__ue_char' (lit)"
+					printf '%s' "$a2u__ue_char"
+					;;
+				*)
+					debug "urlencode string $a2u__ue_string" "urlencode right $a2u__ue_right" "urlencode char '$a2u__ue_char' (enc)"
+					printf '%%%02x' "'$a2u__ue_char"
+					;;
+				esac
+				a2u__ue_string=$a2u__ue_right
+			done
+		)"
 		;;
 	# no extra chars, append as is
-	*) A2U__URLENCODED_STRING=${A2U__URLENCODED_STRING}$a2u__ue_string ;;
+	*)
+		debug "urlencode: just return with file://"
+		# shellcheck disable=SC2031
+		A2U__URLENCODED_STRING="file://${a2u__ue_string}"
+		;;
 	esac
+	debug "urlencode output: $A2U__URLENCODED_STRING"
+}
+
+urldecode() {
+	# pretty dumb % urldecode, no scheme
+	# writes to A2U__URLDECODED_STR var
+	debug "urldecode input: $1"
+	case "${1}" in
+	*%[0-9a-fA-F][0-9a-fA-F]*) true ;;
+	*)
+		debug "urldecode: return as is"
+		A2U__URLDECODED_STR="$1"
+		return 0
+		;;
+	esac
+	a2u__ud_remainder=${1}
+	# no way forward but via a couple of forks,
+	# need to feed printf ouptut to another printf
+	A2U__URLDECODED_STR=$(
+		while [ -n "${a2u__ud_remainder}" ]; do
+			# left part before first encounter of %XX
+			a2u__ud_left=${a2u__ud_remainder%%"%"[0-9a-fA-F][0-9a-fA-F]*}
+			# append
+			printf '%s\n' "${a2u__ud_left}"
+			case "${a2u__ud_left}" in
+			# nothing left to cut
+			"${a2u__ud_remainder}") break ;;
+			esac
+			# %XX and reminder after %XX
+			a2u__ud_code=${a2u__ud_remainder#"${a2u__ud_left}%"}
+			a2u__ud_remainder=${a2u__ud_code#??}
+			a2u__ud_code=${a2u__ud_code%"${a2u__ud_remainder}"}
+			# append octal substring
+			printf '\\0%03o\n' "0x${a2u__ud_code}"
+		done | while IFS= read -r a2u__ud_chunk; do
+			case "$a2u__ud_chunk" in
+			# convert from octal to string
+			'\0'[0-7][0-7][0-7]) printf '%b' "$a2u__ud_chunk" ;;
+			# print as is
+			*) printf '%s' "$a2u__ud_chunk" ;;
+			esac
+		done
+	)
+	debug "urldecode output: $A2U__URLDECODED_STR"
+}
+
+validate_file_url() {
+	# check URL for invalid/path-unsafe chars and forbidden/malformed sequences
+	# (only suitable for file:// without scheme)
+	case "$1" in
+	'')
+		error "File URL is empty"
+		return 1
+		;;
+	[!/]*)
+		error "File URL does not start with /: $1"
+		return 1
+		;;
+	*[!%a-zA-Z0-9/:@._~!\$\&\'\(\)*+,\;=-]*)
+		error "URL contains invalid characters: $1"
+		return 1
+		;;
+	*%00* | *%2[Ff]* | *%5[Cc]* | *%2[Ee]%2[Ee]* | *%01* | *%1[0-9a-fA-F]* | *%7[Ff]*)
+		error "URL contains forbidden %-sequences: $1"
+		return 1
+		;;
+	*%[0-9a-fA-F][!0-9a-fA-F]* | *%[!0-9a-fA-F]* | *%?[!0-9a-fA-F]* | *%? | *%)
+		error "URL contains malformed %-sequences: $1"
+		return 1
+		;;
+	esac
+	return 0
 }
 
 gen_unit_id() {
@@ -1381,22 +1486,13 @@ get_mime() {
 	# gets mime type of file or url
 	# writes to A2U__MIME var
 	a2u__f_mime=
-	case "$1" in
-	[a-zA-Z]*:*)
-		IFS=':' read -r a2u__scheme _rest <<- EOF
-			$1
-		EOF
-		debug "potential scheme '$a2u__scheme'"
-		case "$a2u__scheme" in
-		*[!a-zA-Z0-9+.-]*)
-			debug "not a valid scheme '$a2u__scheme', assuming file"
-			a2u__f_mime=$(xdg-mime query filetype "$1")
-			;;
-		*) a2u__f_mime=x-scheme-handler/$a2u__scheme ;;
-		esac
-		;;
-	*) a2u__f_mime=$(xdg-mime query filetype "$1") ;;
-	esac
+	if is_url "$1"; then
+		a2u__scheme=${1%%:*}
+		debug "scheme '$a2u__scheme'"
+		a2u__f_mime=x-scheme-handler/$a2u__scheme
+	else
+		a2u__f_mime=$(xdg-mime query filetype "$1")
+	fi
 
 	case "$a2u__f_mime" in
 	'' | 'x-scheme-handler/')
@@ -1836,7 +1932,21 @@ gen_exec() {
 		fi
 		A2U__MAIN_ARG=
 		# determine if file or URL, get associations for A2U__MAIN_ARG
+		a2u__first_arg=true
 		for a2u__arg in "$@"; do
+			case "${a2u__first_arg}" in
+			true)
+				# drop arg array for re-adding
+				set --
+				a2u__first_arg=
+				;;
+			esac
+			# convert file:// url to path
+			if is_file_url "${a2u__arg}"; then
+				validate_file_url "${a2u__arg#"file://"}"
+				urldecode "${a2u__arg#"file://"}"
+				a2u__arg=$A2U__URLDECODED_STR
+			fi
 			get_mime "$a2u__arg"
 			a2u__mime=$A2U__MIME
 			get_assoc "$a2u__mime"
@@ -1851,6 +1961,8 @@ gen_exec() {
 				error "Can not open multiple files/URLs with different associations"
 				exit 1
 			fi
+			# re-add arg
+			set -- "$@" "$a2u__arg"
 		done
 	elif [ "$A2U__FUZZEL_COMPAT" = "true" ]; then
 		debug "setting A2U__MAIN_ARG from FUZZEL_DESKTOP_FILE_ID: '$FUZZEL_DESKTOP_FILE_ID'" "passing arguments to exec array"
