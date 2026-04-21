@@ -1087,6 +1087,7 @@ urlencode() {
 		debug "urlencode: encoding"
 		# shellcheck disable=SC2030
 		A2U__URLENCODED_STRING="file://$(
+			LC_ALL=C
 			while [ -n "$a2u__ue_string" ]; do
 				a2u__ue_right=${a2u__ue_string#?}
 				a2u__ue_char=${a2u__ue_string%"$a2u__ue_right"}
