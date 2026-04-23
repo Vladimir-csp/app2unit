@@ -1626,7 +1626,7 @@ gen_exec() {
 
 	A2U__LCODE=${LANGUAGE:-"$LANG"}
 	A2U__LCODE=${A2U__LCODE%_*}
-	A2U__LCODE=${A2U__LCODE:-A2U__NOLCODE}
+	A2U__LCODE=${A2U__LCODE:-NOLCODE}
 
 	# expand short args
 	a2u__first=true
@@ -2210,7 +2210,6 @@ A2U__APPLICATIONS_DIRS='' \
 	A2U__MAIN_ARG='' \
 	A2U__MIME='' \
 	A2U__NEW_RANDOM_STRING='' \
-	A2U__NOLCODE='' \
 	A2U__NORMALIZED_PATH='' \
 	A2U__OPENER_MODE='' \
 	A2U__PART_OF_GST='' \
