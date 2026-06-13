@@ -1413,9 +1413,8 @@ parse_main_arg() {
 		return 1
 		;;
 	*.desktop:*)
-		IFS=':' read -r A2U__ENTRY_ID A2U__ENTRY_ACTION <<- EOA
-			$A2U__MAIN_ARG
-		EOA
+		A2U__ENTRY_ID=${A2U__MAIN_ARG%%.desktop:*}.desktop
+		A2U__ENTRY_ACTION=${A2U__MAIN_ARG#"${A2U__ENTRY_ID}:"}
 		;;
 	*.desktop)
 		A2U__ENTRY_ID=$A2U__MAIN_ARG
@@ -1438,9 +1437,15 @@ parse_main_arg() {
 		esac
 
 		if ! validate_entry_id "$A2U__ENTRY_ID"; then
-			if [ -z "$A2U__ENTRY_PATH" ]; then
+			# entry id is invalid, but points to a file in PWD, make it a path
+			if [ -z "$A2U__ENTRY_PATH" ] && [ -f "$A2U__ENTRY_ID" ]; then
+				warning "Invalid Entry ID '$A2U__ENTRY_ID'!"
+				A2U__ENTRY_PATH="${PWD}/${A2U__ENTRY_ID}"
+			# entry id is invalid, error out
+			elif [ -z "$A2U__ENTRY_PATH" ]; then
 				error "Invalid Entry ID '$A2U__ENTRY_ID'!"
 				return 1
+			# entry id is invalid, but initial argument was a path
 			else
 				warning "Invalid Entry ID '$A2U__ENTRY_ID'!"
 			fi
