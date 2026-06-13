@@ -1097,7 +1097,10 @@ urlencode() {
 					printf '%s' "$a2u__ue_char"
 					;;
 				*)
-					debug "urlencode string $a2u__ue_string" "urlencode right $a2u__ue_right" "urlencode char '$a2u__ue_char' (enc)"
+					[ -z "$A2U__DEBUG" ] || debug \
+						"urlencode string $a2u__ue_string" \
+						"urlencode right $a2u__ue_right" \
+						"urlencode char '$a2u__ue_char' (enc: $(printf '%%%02x' "'$a2u__ue_char"))"
 					printf '%%%02x' "'$a2u__ue_char"
 					;;
 				esac
