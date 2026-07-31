@@ -1632,10 +1632,6 @@ gen_exec() {
 	# will be set where needed
 	A2U__RANDOM_STRING=
 
-	A2U__LCODE=${LANGUAGE:-"$LANG"}
-	A2U__LCODE=${A2U__LCODE%_*}
-	A2U__LCODE=${A2U__LCODE:-NOLCODE}
-
 	# expand short args
 	a2u__first=true
 	a2u__found_delim=false
@@ -2188,7 +2184,24 @@ gen_exec() {
 # this var will contain complete finalized execution array(s)
 A2U__FINAL_EXEC_RSEP_USEP=
 
+# get language code
+# shellcheck disable=SC2031
+if [ -n "${LC_ALL-}" ]; then
+	debug "using LC_ALL $LC_ALL"
+	a2u__lcode_pre=${LC_ALL%%_*}
+elif [ -n "${LC_MESSAGES-}" ]; then
+	debug "using LC_MESSAGES $LC_MESSAGES"
+	a2u__lcode_pre=${LC_MESSAGES%%_*}
+elif [ -n "${LANG-}" ]; then
+	debug "using LANG $LANG"
+	a2u__lcode_pre=${LANG%%_*}
+else
+	a2u__lcode_pre=NOLCODE
+fi
+debug "using language code $a2u__lcode_pre"
+
 # "isolate" most of other upper case vars by making shell revert them after gen_exec function
+# run everything with LC_ALL=C
 A2U__APPLICATIONS_DIRS='' \
 	A2U__ASSOC='' \
 	A2U__CR='' \
@@ -2214,7 +2227,6 @@ A2U__APPLICATIONS_DIRS='' \
 	A2U__EXPANDED_STR='' \
 	A2U__FOUND_ENTRY_PATH='' \
 	A2U__FUZZEL_COMPAT='' \
-	A2U__LCODE='' \
 	A2U__MAIN_ARG='' \
 	A2U__MIME='' \
 	A2U__NEW_RANDOM_STRING='' \
@@ -2237,6 +2249,8 @@ A2U__APPLICATIONS_DIRS='' \
 	A2U__UNIT_SLICE_ID='' \
 	A2U__UNIT_TYPE='' \
 	A2U__URLENCODED_STRING='' \
+	A2U__LCODE=${a2u__lcode_pre} \
+	LC_ALL=C \
 	gen_exec "$@"
 
 # unset all launcher meta vars
