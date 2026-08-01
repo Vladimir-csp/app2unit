@@ -65,8 +65,8 @@ Or set slice explicitly. Default and short
 
 	Override the whole Unit ID. Must match type. Defaults to recommended
 	templates:
-		app-_${desktop}_-_${app_name}_@_${random}_.service++
-app-_${desktop}_-_${app_name}_-_${random}_.scope
+		app-${desktop}-${app_name}@${random}.service++
+app-${desktop}-${app_name}-${random}.scope
 	Conflicts with *-a*.
 
 *-x*
