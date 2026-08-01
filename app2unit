@@ -1284,7 +1284,10 @@ systemd_run_finalize_usep() {
 	# generate and prepend common args, append execution modification flag
 	# fill A2U__FINAL_EXEC_RSEP_USEP
 	A2U__UNIT_SLICE_ID=${A2U__UNIT_SLICE_ID:-app-graphical.slice}
-	if [ -z "$A2U__UNIT_DESCRIPTION" ] && [ -n "${A2U__ENTRY_NAME_L:-$A2U__ENTRY_NAME}" ] && [ -n "${A2U__ENTRY_GENERICNAME_L:-$A2U__ENTRY_GENERICNAME}" ]; then
+	if [ -z "$A2U__UNIT_DESCRIPTION" ] &&
+		[ -n "${A2U__ENTRY_NAME_L:-$A2U__ENTRY_NAME}" ] &&
+		[ -n "${A2U__ENTRY_GENERICNAME_L:-$A2U__ENTRY_GENERICNAME}" ] &&
+		[ "${A2U__ENTRY_NAME_L:-$A2U__ENTRY_NAME}" != "${A2U__ENTRY_GENERICNAME_L:-$A2U__ENTRY_GENERICNAME}" ]; then
 		A2U__UNIT_DESCRIPTION="${A2U__ENTRY_NAME_L:-$A2U__ENTRY_NAME} - ${A2U__ENTRY_GENERICNAME_L:-$A2U__ENTRY_GENERICNAME}"
 	elif [ -z "$A2U__UNIT_DESCRIPTION" ] && [ -n "${A2U__ENTRY_NAME_L:-$A2U__ENTRY_NAME}" ]; then
 		A2U__UNIT_DESCRIPTION="${A2U__ENTRY_NAME_L:-$A2U__ENTRY_NAME}"
